@@ -17,7 +17,7 @@ from ipdb import set_trace as db
 
 class DataGenerator(Sequence):
     def __init__(self, data, batch_size, input_profile_names, actuator_names,
-                 target_profile_names, scalar_input_names,
+                 target_profile_names, scalar_input_names, target_scalar_names,
                  lookbacks, lookahead, predict_deltas,
                  profile_downsample, shuffle, **kwargs):
         """Make a data generator for training or validation data
@@ -42,6 +42,7 @@ class DataGenerator(Sequence):
         self.actuator_inputs = actuator_names
         self.targets = target_profile_names
         self.scalar_inputs = scalar_input_names
+        self.scalar_targets = target_scalar_names
         self.lookbacks = lookbacks
         self.lookahead = lookahead
         self.predict_deltas = predict_deltas
@@ -125,6 +126,10 @@ class DataGenerator(Sequence):
                                                    -1, ::self.profile_downsample]
                 except:
                     continue
+        for sig in self.scalar_targets:
+            targ['target_' + sig] = self.data[sig][idx * self.batch_size:(idx + 1) * self.batch_size,
+                                                   -1
+            pass
 
         if self.times_called % len(self) == 0 and self.shuffle:
             self.inds = np.random.permutation(range(len(self)))
@@ -761,4 +766,5 @@ def process_data(rawdata, sig_names, normalization_method, window_length=1,
         print('Total number of samples: ', str(nsamples))
         print('Number of training samples: ', str(traininds.size))
         print('Number of validation samples: ', str(valinds.size))
+    db()
     return traindata, valdata, normalization_params
