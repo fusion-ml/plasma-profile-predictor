@@ -12,11 +12,12 @@ from keras.callbacks import TensorBoard
 from helpers.normalization import normalize
 from helpers.pruning_functions import remove_dudtrip, remove_I_coil, remove_ECH, remove_gas, remove_nan, remove_non_gas_feedback, remove_non_beta_feedback
 from helpers import exclude_shots
+from ipdb import set_trace as db
 
 
 class DataGenerator(Sequence):
     def __init__(self, data, batch_size, input_profile_names, actuator_names,
-                 target_profile_names, scalar_input_names,
+                 target_profile_names, scalar_input_names, target_scalar_names,
                  lookbacks, lookahead, predict_deltas,
                  profile_downsample, shuffle, **kwargs):
         """Make a data generator for training or validation data
@@ -41,6 +42,7 @@ class DataGenerator(Sequence):
         self.actuator_inputs = actuator_names
         self.targets = target_profile_names
         self.scalar_inputs = scalar_input_names
+        self.scalar_targets = target_scalar_names
         self.lookbacks = lookbacks
         self.lookahead = lookahead
         self.predict_deltas = predict_deltas
@@ -124,6 +126,14 @@ class DataGenerator(Sequence):
                                                    -1, ::self.profile_downsample]
                 except:
                     continue
+        for sig in self.scalar_targets:
+            if self.predict_deltas:
+                baseline = self.data[sig][idx * self.batch_size:(idx + 1) * self.batch_size, self.lookbacks[sig]]
+            else:
+                baseline = 0
+
+            targ['target_' + sig] = self.data[sig][idx * self.batch_size:(idx + 1) * self.batch_size, -1] - baseline
+
 
         if self.times_called % len(self) == 0 and self.shuffle:
             self.inds = np.random.permutation(range(len(self)))

@@ -21,8 +21,8 @@ import tensorflow as tf
 from keras import backend as K
 from ipdb import set_trace as db
 
-NAME = 'parameters_no_stop'
 
+NAME = 'no_parameters_no_stop'
 
 def main(scenario_index=-2):
 
@@ -64,7 +64,7 @@ def main(scenario_index=-2):
                         'input_profile_names': ['dens','temp','itemp','q','rotation'],
                         'target_profile_names': ['dens','temp','itemp','q','rotation'],
                         'scalar_input_names' : ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
-                        'target_scalar_names' : [],
+                        'target_scalar_names' : ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
                         'profile_downsample' : 2,
                         'model_type' : 'conv2d',
                         'model_kwargs': {'max_channels': 32,'kernel_initializer':'lecun_normal','l2':1e-4},
@@ -279,7 +279,7 @@ def main(scenario_index=-2):
                                     scenario['actuator_names'],
                                     scenario['target_profile_names'],
                                     scenario['scalar_input_names'],
-                                    scenario['target_scalar_names'],
+                                    scenario['scalar_input_names'],
                                     scenario['lookbacks'],
                                     scenario['lookahead'],
                                     scenario['predict_deltas'],
@@ -292,7 +292,7 @@ def main(scenario_index=-2):
                                   scenario['actuator_names'],
                                   scenario['target_profile_names'],
                                   scenario['scalar_input_names'],
-                                  scenario['target_scalar_names'],
+                                  scenario['scalar_input_names'],
                                   scenario['lookbacks'],
                                   scenario['lookahead'],
                                   scenario['predict_deltas'],
@@ -323,7 +323,7 @@ def main(scenario_index=-2):
     model = models_dict[scenario['model_type']](scenario['input_profile_names'],
                                                scenario['target_profile_names'],
                                                scenario['scalar_input_names'],
-                                               scenario['target_scalar_names'],
+                                               scenario['scalar_input_names'],
                                                scenario['actuator_names'],
                                                scenario['lookbacks'],
                                                scenario['lookahead'],
@@ -371,7 +371,7 @@ def main(scenario_index=-2):
     callbacks.append(ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5,
                                        verbose=1, mode='min', min_delta=5e-3,
                                        cooldown=1, min_lr=0))
-    #$ callbacks.append(EarlyStopping(monitor='val_loss', min_delta=2e-4, patience=8,
+    # callbacks.append(EarlyStopping(monitor='val_loss', min_delta=2e-4, patience=8, 
                                    # verbose=1, mode='min'))
     callbacks.append(TimingCallback(time_limit=60*runtimes[scenario_index]))    
     if ngpu<=1:
