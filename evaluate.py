@@ -92,7 +92,7 @@ for folder in folders:
                 print('no model for path:',model_path)
                 continue
 
-            full_data_path = '/zfsauton2/home/virajm/data/profile_data/test_data.pkl'
+            full_data_path = '/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl'
             # rt_data_path = '/scratch/gpfs/jabbate/test_rt/final_data.pkl'
             traindata, valdata, normalization_dict = helpers.data_generator.process_data(full_data_path,
                                                               scenario['sig_names'],
