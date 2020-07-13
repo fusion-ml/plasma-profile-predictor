@@ -1,10 +1,10 @@
-from keras.layers import Input, Dense, LSTM, Conv1D, Conv2D, ConvLSTM2D, Dot, Add, Multiply, Concatenate, Reshape, Permute, ZeroPadding1D, Cropping1D, GlobalAveragePooling2D
+from keras.layers import Input, Dense, LSTM, Conv1D, Conv2D, ConvLSTM2D, Dot, Add, Multiply, Concatenate, Reshape, Permute, ZeroPadding1D, Cropping1D, GlobalAveragePooling2D, Lambda, Flatten
 from keras.models import Model
 from keras import regularizers
 import numpy as np
 
 
-def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_names,
+def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_names, scalar_target_names,
                      actuator_names, lookbacks, lookahead, profile_length, std_activation, **kwargs):
 
     max_profile_lookback = 0
@@ -21,7 +21,9 @@ def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_nam
             max_scalar_lookback = lookbacks[sig]
 
     num_profiles = len(input_profile_names)
-    num_targets = len(target_profile_names)
+    num_targets_profile = len(target_profile_names)
+    num_targets_scalar = len(scalar_target_names)
+    num_targets = num_targets_profile + num_targets_scalar
     num_actuators = len(actuator_names)
     num_scalars = len(scalar_input_names)
 
@@ -173,7 +175,7 @@ def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_nam
     # shape = (1, length, channels)
 
     prof_act = []
-    for i in range(num_targets):
+    for i in range(num_targets_profile):
         prof_act.append(Conv2D(filters=max_channels, kernel_size=(1, int(profile_length/4)), strides=(1, 1),
                                padding='same', activation=std_activation,
                               kernel_regularizer=regularizers.l2(l2),bias_regularizer=regularizers.l2(l2),
@@ -215,11 +217,27 @@ def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_nam
         else:
             prof_act[i] = Reshape((profile_length,), name='target_' +
                                   target_profile_names[i])(prof_act[i])
-
+    scalar_outputs = []
+    if num_targets_scalar > 0:
+        scalar_output = Flatten()(merged)
+        scalar_output = Dense(units=512, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
+                              bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
+                              bias_initializer=bias_init)(scalar_output)
+        scalar_output = Dense(units=256, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
+                              bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
+                              bias_initializer=bias_init)(scalar_output)
+        scalar_output = Dense(units=128, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
+                              bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
+                              bias_initializer=bias_init)(scalar_output)
+        scalar_output = Dense(units=num_targets_scalar, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
+                              bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
+                              bias_initializer=bias_init)(scalar_output)
+        for i in range(num_targets_scalar):
+            scalar_outputs.append(Lambda(lambda x: x[:, i:i+1], name='target_' + scalar_target_names[i])(scalar_output))
     model_inputs = profile_inputs + actuator_past_inputs + actuator_future_inputs
     if num_scalars > 0:
         model_inputs += scalar_inputs
-    model_outputs = prof_act
+    model_outputs = prof_act + scalar_outputs
     model = Model(inputs=model_inputs, outputs=model_outputs)
     return model
 

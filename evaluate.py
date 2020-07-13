@@ -70,8 +70,8 @@ metrics = {'mean_squared_error':mean_squared_error,
 ##########
 # load model and scenario
 ##########
-base_path = '/zfsauton2/home/virajm/src/plasma-profile-predictor/'
-folders = ['run_results_1/']
+base_path = '/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/'
+folders = ['good_model/']
 
 for folder in folders:
     files =  [foo for foo in os.listdir(base_path+folder) if foo.endswith('.pkl')]
