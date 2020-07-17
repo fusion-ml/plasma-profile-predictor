@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'no_parameters_no_stop'
+NAME = 'parameters_no_stop_joe2'
 
 def main(scenario_index=-2):
 
@@ -61,6 +61,57 @@ def main(scenario_index=-2):
     ###############
 
     default_scenario = {'actuator_names': ['target_density','pinj','tinj','curr_target'],
+                        'input_profile_names': ['dens','temp','itemp','q_EFIT01','rotation'],
+                        'target_profile_names': ['dens','temp','itemp','q_EFIT01','rotation'],
+                        'scalar_input_names' : ['density_estimate','li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        'target_scalar_names' : ['density_estimate','li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        # 'target_scalar_names' : [],# ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        'profile_downsample' : 2,
+                        'model_type' : 'conv2d',
+                        'model_kwargs': {'max_channels': 128,'kernel_initializer':'lecun_normal','l2':1e-4},
+                        'std_activation' : 'relu',
+                        'sample_weighting':'std',
+                        'loss_function': 'mae',
+                        'loss_function_kwargs':{},
+                        'batch_size' : 128,
+                        'epochs' : 100,
+                        'flattop_only': True,
+                        'predict_deltas' : True,
+                        'raw_data_path':'/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl',
+#                         'raw_data_path':'/scratch/gpfs/jabbate/old_stuff/new_data/final_data.pkl',
+                        'process_data':True,
+                        'invert_q': True,
+                        'processed_filename_base': '/scratch/gpfs/jabbate/data_60_ms_randomized_',
+                        'optimizer': 'adagrad',
+                        'optimizer_kwargs': {},
+                        'shuffle_generators': True,
+                        'pruning_functions':['remove_nan',
+                                             'remove_dudtrip',
+                                             'remove_I_coil',
+                                             'remove_non_gas_feedback',
+#                                              'remove_non_beta_feedback',
+                                             'remove_ECH'],
+                        'normalization_method': 'RobustScaler',
+                        'window_length': 1,
+                        'window_overlap': 0,
+                        'profile_lookback': 0,
+                        'actuator_lookback': 6,
+                        'lookahead': 4,
+                        'sample_step': 1,
+                        'uniform_normalization': True,
+                        'train_frac': 0.8,
+                        'val_frac': 0.2,
+                        'val_idx': 8,
+                        'nshots': 12000,
+                        'excluded_shots': ['topology_TOP', 
+                                           'topology_OUT',
+                                           'topology_MAR',
+                                           'topology_IN',
+                                           'topology_DN',
+                                           'topology_BOT',
+                                           'test_set']} 
+
+    default_scenario2 = {'actuator_names': ['target_density','pinj','tinj','curr_target'],
                         'input_profile_names': ['dens','temp','itemp','q','rotation'],
                         'target_profile_names': ['dens','temp','itemp','q','rotation'],
                         'scalar_input_names' : ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
@@ -137,7 +188,7 @@ def main(scenario_index=-2):
 #                                    'target_profile_names': ['dens','temp', 'itemp','q_EFIT01','rotation','ffprime_EFIT01','press_EFIT01']},
 #                                   {'input_profile_names': ['dens','temp', 'q_EFIT01','rotation','ffprime_EFIT01','press_EFIT01'],
 #                                   'target_profile_names': ['dens','temp','q_EFIT01','rotation','ffprime_EFIT01','press_EFIT01']},
-                                  
+
     scenarios_dict['sample_weighting'] = [{'sample_weighting':'std'},{'sample_weighting':None}]
 #     scenarios_dict['scalars'] = [{'scalar_input_names' : ['density_estimate','li_EFITRT1','volume_EFITRT1','kappa_EFITRT1',
 #                                                           'triangularity_top_EFITRT1','triangularity_bot_EFITRT1']},
@@ -157,7 +208,7 @@ def main(scenario_index=-2):
 #                               {'loss_function':'max_diff_sum_2'},
 #                               {'loss_function':'mean_diff2_sum2'},
 #                               {'loss_function':'max_diff2_sum2'}]
-    
+
 
     scenarios = []
     runtimes = []
@@ -279,7 +330,7 @@ def main(scenario_index=-2):
                                     scenario['actuator_names'],
                                     scenario['target_profile_names'],
                                     scenario['scalar_input_names'],
-                                    scenario['scalar_input_names'],
+                                    scenario['target_scalar_names'],
                                     scenario['lookbacks'],
                                     scenario['lookahead'],
                                     scenario['predict_deltas'],
@@ -292,7 +343,7 @@ def main(scenario_index=-2):
                                   scenario['actuator_names'],
                                   scenario['target_profile_names'],
                                   scenario['scalar_input_names'],
-                                  scenario['scalar_input_names'],
+                                  scenario['target_scalar_names'],
                                   scenario['lookbacks'],
                                   scenario['lookahead'],
                                   scenario['predict_deltas'],
@@ -323,7 +374,7 @@ def main(scenario_index=-2):
     model = models_dict[scenario['model_type']](scenario['input_profile_names'],
                                                scenario['target_profile_names'],
                                                scenario['scalar_input_names'],
-                                               scenario['scalar_input_names'],
+                                               scenario['target_scalar_names'],
                                                scenario['actuator_names'],
                                                scenario['lookbacks'],
                                                scenario['lookahead'],
