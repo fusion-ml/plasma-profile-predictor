@@ -1,4 +1,4 @@
-from keras.layers import Input, Dense, LSTM, Conv1D, Conv2D, ConvLSTM2D, Dot, Add, Multiply, Concatenate, Reshape, Permute, ZeroPadding1D, Cropping1D, GlobalAveragePooling2D, Lambda, Flatten
+from keras.layers import Input, Dense, LSTM, Conv1D, Conv2D, ConvLSTM2D, Dot, Add, Multiply, Concatenate, Reshape, Permute, ZeroPadding1D, Cropping1D, GlobalAveragePooling2D, Lambda, Flatten, MaxPool2D
 from keras.models import Model
 from keras import regularizers
 import numpy as np
@@ -171,7 +171,7 @@ def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_nam
     else:
         merged = Add()([profiles, actuators])
     merged = Reshape((1, profile_length, int(
-        num_profiles*max_channels)))(merged)
+        num_profiles*max_channels)), name="merged")(merged)
     # shape = (1, length, channels)
 
     prof_act = []
@@ -219,10 +219,15 @@ def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_nam
                                   target_profile_names[i])(prof_act[i])
     scalar_outputs = []
     if num_targets_scalar > 0:
-        scalar_output = Flatten()(merged)
-        scalar_output = Dense(units=512, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
-                              bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
-                              bias_initializer=bias_init)(scalar_output)
+        # scalar_output = MaxPool2D()(merged)
+        scalar_output = Conv2D(filters=int(max_channels / 8), kernel_size=(1, int(profile_length / 4)),
+                               strides=(1, 1), padding='same',
+                               kernel_regularizer=regularizers.l2(l2),bias_regularizer=regularizers.l2(l2),
+                               kernel_initializer=kernel_init, bias_initializer=bias_init)(merged)
+        scalar_output = Flatten()(scalar_output)
+        # scalar_output = Dense(units=512, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
+        #                       bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
+        #                       bias_initializer=bias_init)(scalar_output)
         scalar_output = Dense(units=256, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
                               bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
                               bias_initializer=bias_init)(scalar_output)

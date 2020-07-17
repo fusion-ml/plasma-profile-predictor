@@ -38,11 +38,11 @@ class DataGenerator(Sequence):
         """
         self.data = data
         self.batch_size = batch_size
-        self.profile_inputs = input_profile_names
-        self.actuator_inputs = actuator_names
-        self.targets = target_profile_names
-        self.scalar_inputs = scalar_input_names
-        self.scalar_targets = target_scalar_names
+        self.profile_inputs = input_profile_names.copy()
+        self.actuator_inputs = actuator_names.copy()
+        self.profile_targets = target_profile_names.copy()
+        self.scalar_inputs = scalar_input_names.copy()
+        self.scalar_targets = target_scalar_names.copy()
         self.lookbacks = lookbacks
         self.lookahead = lookahead
         self.predict_deltas = predict_deltas
@@ -71,7 +71,7 @@ class DataGenerator(Sequence):
         idx = self.inds[idx]
         inp = {}
         targ = {}
-        uncertainties={sig:{} for sig in set(self.profile_inputs).union(self.targets)}
+        uncertainties={sig:{} for sig in set(self.profile_inputs).union(self.profile_targets)}
 
         self.cur_shotnum = self.data['shotnum'][idx * self.batch_size:
                                                 (idx+1)*self.batch_size]
@@ -108,7 +108,7 @@ class DataGenerator(Sequence):
                                                  (idx+1)*self.batch_size,
                                                  0:self.lookbacks[sig]+1]
 
-        for sig in self.targets:
+        for sig in self.profile_targets:
             if self.predict_deltas:
                 baseline = self.data[sig][idx * self.batch_size:(idx+1)*self.batch_size,
                                           self.lookbacks[sig], ::self.profile_downsample]
@@ -137,7 +137,7 @@ class DataGenerator(Sequence):
 
         if self.times_called % len(self) == 0 and self.shuffle:
             self.inds = np.random.permutation(range(len(self)))
-        sample_weights_dict = {'target_'+sig: sample_weights for sig in self.targets}
+        sample_weights_dict = {'target_'+sig: sample_weights for sig in self.profile_targets}
         if self.kwargs.get('return_uncertainties'):
             return inp, targ, sample_weights_dict, uncertainties
         else:

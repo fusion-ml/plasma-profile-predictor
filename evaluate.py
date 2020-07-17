@@ -11,6 +11,8 @@ import tensorflow as tf
 from keras import backend as K
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+from sklearn.metrics import explained_variance_score
+from ipdb import set_trace as db
 
 sys.path.append(os.path.abspath('../'))
 import helpers
@@ -71,114 +73,139 @@ metrics = {'mean_squared_error':mean_squared_error,
 # load model and scenario
 ##########
 base_path = '/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/'
-folders = ['good_model/']
+# folders = ['run_results_no_parameters_no_stop/']
+folders = ['parameters_no_stop_joe/']
 
 for folder in folders:
     files =  [foo for foo in os.listdir(base_path+folder) if foo.endswith('.pkl')]
     for file in files:
-        try:
-            file_path = base_path + folder + file
-            with open(file_path, 'rb') as f:
-                scenario = pickle.load(f, encoding='latin1')
+        file_path = base_path + folder + file
+        if not os.path.exists(file_path):
+            print(f"Path {file_path} doesn't exist!")
+            continue
+        with open(file_path, 'rb') as f:
+            scenario = pickle.load(f, encoding='latin1')
+#         if 'evaluation_metrics' in scenario:
+#             continue
+        if len(scenario['target_profile_names']) > len(scenario['input_profile_names']):
+            scenario['target_profile_names'] = scenario['input_profile_names']
 
-    #         if 'evaluation_metrics' in scenario:
-    #             continue
+        model_path = file_path[:-11] + '.h5'
+        if not os.path.exists(model_path):
+            print(f"Path {model_path} doesn't exist!")
+            continue
+        if os.path.exists(model_path):
+            model = keras.models.load_model(model_path, compile=False)
+            print('loaded model: ' + model_path.split('/')[-1])
+        else:
+            print('no model for path:',model_path)
+            continue
+        if 'target_scalar_names' not in scenario:
+            scenario['target_scalar_names'] = []
 
-            model_path = file_path[:-11] + '.h5'
-            if os.path.exists(model_path):
-                model = keras.models.load_model(model_path, compile=False)
-                print('loaded model: ' + model_path.split('/')[-1])
-            else:
-                print('no model for path:',model_path)
-                continue
+        full_data_path = '/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl'
+        # rt_data_path = '/scratch/gpfs/jabbate/test_rt/final_data.pkl'
+        traindata, valdata, normalization_dict = helpers.data_generator.process_data(full_data_path,
+                                                          scenario['sig_names'],
+                                                          scenario['normalization_method'],
+                                                          scenario['window_length'],
+                                                          scenario['window_overlap'],
+                                                          scenario['lookbacks'],
+                                                          scenario['lookahead'],
+                                                          scenario['sample_step'],
+                                                          scenario['uniform_normalization'],
+                                                          scenario['train_frac'],
+                                                          scenario['val_frac'],
+                                                          scenario['nshots'],
+                                                          0, #scenario['verbose']
+                                                          scenario['flattop_only'],
+                                                          randomize=False,
+                                                          pruning_functions=scenario['pruning_functions'],
+                                                          excluded_shots = scenario['excluded_shots'],
+                                                          delta_sigs = [],
+                                                          invert_q=scenario.setdefault('invert_q',False),
+                                                          val_idx = scenario['val_idx'])
+        valdata = helpers.normalization.renormalize(
+            helpers.normalization.denormalize(
+                valdata.copy(),normalization_dict, verbose=0),
+            scenario['normalization_dict'],verbose=0)
 
-            full_data_path = '/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl'
-            # rt_data_path = '/scratch/gpfs/jabbate/test_rt/final_data.pkl'
-            traindata, valdata, normalization_dict = helpers.data_generator.process_data(full_data_path,
-                                                              scenario['sig_names'],
-                                                              scenario['normalization_method'],
-                                                              scenario['window_length'],
-                                                              scenario['window_overlap'],
-                                                              scenario['lookbacks'],
-                                                              scenario['lookahead'],
-                                                              scenario['sample_step'],
-                                                              scenario['uniform_normalization'],
-                                                              1, #scenario['train_frac'],
-                                                              0, #scenario['val_frac'],
-                                                              scenario['nshots'],
-                                                              0, #scenario['verbose']
-                                                              scenario['flattop_only'],
-                                                              randomize=False,
-                                                              pruning_functions=scenario['pruning_functions'],
-                                                              excluded_shots = scenario['excluded_shots'],
-                                                              delta_sigs = [],
-                                                              invert_q=scenario.setdefault('invert_q',False),
-                                                              val_idx = scenario['val_idx'])
-            valdata = helpers.normalization.renormalize(
-                helpers.normalization.denormalize(
-                    valdata.copy(),normalization_dict, verbose=0),
-                scenario['normalization_dict'],verbose=0)
+        train_generator = DataGenerator(valdata,
+                                        scenario['batch_size'],
+                                        scenario['input_profile_names'],
+                                        scenario['actuator_names'],
+                                        scenario['target_profile_names'],
+                                        scenario['scalar_input_names'],
+                                        scenario['target_scalar_names'],
+                                        scenario['lookbacks'],
+                                        scenario['lookahead'],
+                                        scenario['predict_deltas'],
+                                        scenario['profile_downsample'],
+                                        False,
+                                        sample_weights = None)
 
-            train_generator = DataGenerator(valdata,
-                                            scenario['batch_size'],
-                                            scenario['input_profile_names'],
-                                            scenario['actuator_names'],
-                                            scenario['target_profile_names'],
-                                            scenario['scalar_input_names'],
-                                            scenario['lookbacks'],
-                                            scenario['lookahead'],
-                                            scenario['predict_deltas'],
-                                            scenario['profile_downsample'],
-                                            False,
-                                            sample_weights = None)
+#         optimizer = keras.optimizers.Adam()
+#         loss = keras.metrics.mean_squared_error
+#         metrics = [keras.metrics.mean_squared_error, 
+#                    keras.metrics.mean_absolute_error, 
+#                    normed_mse, 
+#                    mean_diff_sum_2, 
+#                    max_diff_sum_2, 
+#                    mean_diff2_sum2, 
+#                    max_diff2_sum2]
+#         model.compile(optimizer, loss, metrics)
 
-    #         optimizer = keras.optimizers.Adam()
-    #         loss = keras.metrics.mean_squared_error
-    #         metrics = [keras.metrics.mean_squared_error, 
-    #                    keras.metrics.mean_absolute_error, 
-    #                    normed_mse, 
-    #                    mean_diff_sum_2, 
-    #                    max_diff_sum_2, 
-    #                    mean_diff2_sum2, 
-    #                    max_diff2_sum2]
-    #         model.compile(optimizer, loss, metrics)
+#         outs = model.evaluate_generator(train_generator, verbose=0, workers=4, use_multiprocessing=True)
+        targets = scenario['target_profile_names'].copy()
+        targets += scenario['target_scalar_names']
 
-    #         outs = model.evaluate_generator(train_generator, verbose=0, workers=4, use_multiprocessing=True)
+        predictions_arr = model.predict_generator(train_generator, verbose=0)# , workers=4, use_multiprocessing=True)
 
-            predictions_arr = model.predict_generator(train_generator, verbose=0, workers=4, use_multiprocessing=True)
-
-            predictions = {sig: arr for sig, arr in zip(scenario['target_profile_names'],predictions_arr)}
+        predictions = {sig: arr for sig, arr in zip(targets, predictions_arr)}
 
 
-            baseline = {sig:[] for sig in scenario['target_profile_names']}
-            for i in range(len(train_generator)):
-                sample = train_generator[i]
-                for sig in scenario['target_profile_names']:
-                    baseline[sig].append(sample[1]['target_'+sig])
-            baseline = {sig:np.concatenate(baseline[sig],axis=0) for sig in scenario['target_profile_names']}
+        baseline = {sig:[] for sig in targets}
+        for i in range(len(train_generator)):
+            sample = train_generator[i]
+            for sig in targets:
+                baseline[sig].append(sample[1]['target_'+sig])
+        baseline = {sig:np.concatenate(baseline[sig],axis=0) for sig in targets}
 
-            evaluation_metrics = {}
-            for metric_name,metric in metrics.items():
-                s = 0
-                for sig in scenario['target_profile_names']:
-                    key = sig + '_' + metric_name
-                    val = metric(baseline[sig],predictions[sig])
-                    s += val/len(scenario['target_profile_names'])
-                    evaluation_metrics[key] = val
-                    print(key)
-                    print(val)
-                evaluation_metrics[metric_name] = s
+        db()
+        # get profile data in numpy arrays
+        Y_hat_profiles = np.concatenate([predictions[key] for key in scenario['target_profile_names']], axis=1)
+        Y_profiles = np.concatenate([baseline[key].reshape(predictions[key].shape) for key in scenario['target_profile_names']], axis=1)
 
-            scenario['evaluation_metrics'] = evaluation_metrics
-            if 'date' not in scenario:
-                scenario['date'] = datetime.datetime.strptime(scenario['runname'].split('_')[-2],'%d%b%y-%H-%M')
+        explained_variance_profiles = explained_variance_score(Y_profiles, Y_hat_profiles)
+        print(f"Explained variance on profiles: {explained_variance_profiles:.2%}")
 
-            with open(file_path,'wb+') as f:
-                pickle.dump(copy.deepcopy(scenario),f)
+        # get scalar data in numpy arrays
+        Y_hat_scalars = np.concatenate([predictions[key] for key in scenario['target_scalar_names']], axis=1)
+        Y_scalars = np.concatenate([baseline[key].reshape(predictions[key].shape) for key in scenario['target_scalar_names']], axis=1)
 
-            print('saved evaluation metrics')
-            print(evaluation_metrics)
-        except Exception as e: 
-            print(e)
+        explained_variance_scalars = explained_variance_score(Y_scalars, Y_hat_scalars)
+        print(f"Explained variance on scalars: {explained_variance_scalars:.2%}")
+
+        evaluation_metrics = {}
+        for metric_name,metric in metrics.items():
+            s = 0
+            for sig in targets:
+                key = sig + '_' + metric_name
+                val = metric(baseline[sig],predictions[sig])
+                s += val/len(targets)
+                evaluation_metrics[key] = val
+                print(key)
+                print(val)
+            evaluation_metrics[metric_name] = s
+
+        scenario['evaluation_metrics'] = evaluation_metrics
+        if 'date' not in scenario:
+            scenario['date'] = datetime.datetime.strptime(scenario['runname'].split('_')[-2],'%d%b%y-%H-%M')
+
+        with open(file_path,'wb+') as f:
+            pickle.dump(copy.deepcopy(scenario),f)
+
+        print('saved evaluation metrics')
+        print(evaluation_metrics)
 
     print('done')
