@@ -131,7 +131,8 @@ def main(scenario_index=-2):
 #                         'raw_data_path':'/scratch/gpfs/jabbate/old_stuff/new_data/final_data.pkl',
                         'process_data':True,
                         'invert_q': True,
-                        'processed_filename_base': '/scratch/gpfs/jabbate/data_60_ms_randomized_',
+                        'processed_filename_base': '/zfsauton2/home/virajm/data/profile_data/processed',
+                        # 'processed_filename_base': '/scratch/gpfs/jabbate/data_60_ms_randomized_',
                         'optimizer': 'adagrad',
                         'optimizer_kwargs': {},
                         'shuffle_generators': True,
@@ -244,7 +245,7 @@ def main(scenario_index=-2):
 
     ###############
     # Load Scenario and Data
-    ###############    
+    ###############
     if scenario_index >= 0:
         verbose=2
         print(datetime.datetime.today().strftime('%c'),' Loading Scenario ' + str(scenario_index) + ':')
@@ -253,6 +254,9 @@ def main(scenario_index=-2):
         verbose=1
         print(datetime.datetime.today().strftime('%c'),' Loading Default Scenario:')
         scenario = default_scenario
+        if scenario_index == -3:
+            scenario['process_data'] = False
+            print("You chose to load data instead of process.")
     print(scenario)
 
     if scenario['process_data']:
@@ -287,6 +291,14 @@ def main(scenario_index=-2):
 
         scenario['dt'] = np.mean(np.diff(traindata['time']))/1000 # in seconds
         scenario['normalization_dict'] = normalization_dict
+        if 'processed_filename_base' in scenario.keys():
+            base = scenario['processed_filename_base']
+            # with open(os.path.join(base, 'param_dict.pkl'), 'wb') as f:
+                # pickle.dump(param_dict, f)
+            with open(os.path.join(base, 'train.pkl'), 'wb') as f:
+                pickle.dump(traindata, f)
+            with open(os.path.join(base, 'val.pkl'), 'wb') as f:
+                pickle.dump(valdata, f)
 
     else:        
         if 'processed_filename_base' not in scenario.keys():
