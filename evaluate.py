@@ -70,8 +70,8 @@ metrics = {'mean_squared_error':mean_squared_error,
 ##########
 # load model and scenario
 ##########
-base_path = '/zfsauton2/home/virajm/src/plasma-profile-predictor/'
-folders = ['run_results_1/']
+base_path = '/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/'
+folders = ['good_model/']
 
 for folder in folders:
     files =  [foo for foo in os.listdir(base_path+folder) if foo.endswith('.pkl')]
@@ -92,7 +92,7 @@ for folder in folders:
                 print('no model for path:',model_path)
                 continue
 
-            full_data_path = '/zfsauton2/home/virajm/data/profile_data/test_data.pkl'
+            full_data_path = '/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl'
             # rt_data_path = '/scratch/gpfs/jabbate/test_rt/final_data.pkl'
             traindata, valdata, normalization_dict = helpers.data_generator.process_data(full_data_path,
                                                               scenario['sig_names'],
