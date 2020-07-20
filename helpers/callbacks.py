@@ -4,6 +4,7 @@ from keras.callbacks import Callback
 from keras.callbacks import TensorBoard
 import keras.backend as K
 import numpy as np
+from ipdb import set_trace as db
 
 
 class DynamicWeighting(Callback):
@@ -115,6 +116,7 @@ class TensorBoardWrapper(TensorBoard):
         self.gen_steps = len(self.generator)
         self.profile_inputs = self.generator.profile_inputs
         self.actuator_inputs = self.generator.actuator_inputs
+        self.scalar_inputs = self.generator.scalar_inputs
         self.target_names = self.generator.targets
         self.batch_size = self.generator.batch_size
         self.sample_weights = np.ones(self.gen_steps*self.batch_size)
@@ -124,14 +126,18 @@ class TensorBoardWrapper(TensorBoard):
         targets = {}
         for sig in self.profile_inputs:
             inputs['input_' + sig] = []
+        for sig in self.scalar_inputs:
+            inputs['input_' + sig] = []
         for sig in self.actuator_inputs:
             inputs['input_future_' + sig] = []
             inputs['input_past_' + sig] = []
         for sig in self.target_names:
             targets['target_' + sig] = []
         for s in range(self.gen_steps):
-            inp, targ = self.generator[s]
+            inp, targ, sample_weights_dict = self.generator[s]
             for sig in self.profile_inputs:
+                inputs['input_' + sig].append(inp['input_' + sig])
+            for sig in self.scalar_inputs:
                 inputs['input_' + sig].append(inp['input_' + sig])
             for sig in self.actuator_inputs:
                 inputs['input_past_' + sig].append(inp['input_past_' + sig])
@@ -148,10 +154,15 @@ class TensorBoardWrapper(TensorBoard):
         self.validation_data = [inputs['input_' + sig] for sig in self.profile_inputs] + \
                                [inputs['input_past_' + sig] for sig in self.actuator_inputs] + \
                                [inputs['input_future_' + sig] for sig in self.actuator_inputs] + \
-                               [targets['target_' + sig]
+                               [inputs['input_' + sig] for sig in self.scalar_inputs] + \
+                               [targets['target_' + sig] if len(targets['target_' + sig].shape) == 2 else targets['target_' + sig][:, np.newaxis]
                                    for sig in self.target_names] + [self.sample_weights for _ in range(len(self.target_names))]
-
-        return super(TensorBoardWrapper, self).on_epoch_end(epoch, logs)
+        # logs['end_times'] = np.array(logs['end_times'])[-1]
+        # logs['epoch_times'] = np.array(logs['epoch_times'])[-1]
+        new_logs = logs.copy()
+        del new_logs['end_times']
+        del new_logs['epoch_times']
+        return super(TensorBoardWrapper, self).on_epoch_end(epoch, new_logs)
 
 
 class CyclicLR(Callback):

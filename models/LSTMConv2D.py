@@ -2,6 +2,7 @@ from keras.layers import Input, Dense, LSTM, Conv1D, Conv2D, ConvLSTM2D, Dot, Ad
 from keras.models import Model
 from keras import regularizers
 import numpy as np
+from ipdb import set_trace as db
 
 
 def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_names, scalar_target_names,
@@ -234,11 +235,12 @@ def get_model_conv2d(input_profile_names, target_profile_names, scalar_input_nam
         scalar_output = Dense(units=128, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
                               bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
                               bias_initializer=bias_init)(scalar_output)
-        scalar_output = Dense(units=num_targets_scalar, activation=std_activation, kernel_regularizer=regularizers.l2(l2),
+        scalar_output = Dense(units=num_targets_scalar, activation=None, kernel_regularizer=regularizers.l2(l2),
                               bias_regularizer=regularizers.l2(l2), kernel_initializer=kernel_init,
                               bias_initializer=bias_init)(scalar_output)
         for i in range(num_targets_scalar):
             scalar_outputs.append(Lambda(lambda x: x[:, i:i+1], name='target_' + scalar_target_names[i])(scalar_output))
+            # scalar_outputs.append(scalar_output[:, i, i+1])
     model_inputs = profile_inputs + actuator_past_inputs + actuator_future_inputs
     if num_scalars > 0:
         model_inputs += scalar_inputs

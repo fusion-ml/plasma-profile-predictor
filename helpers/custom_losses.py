@@ -82,6 +82,8 @@ def baseline_MAE(sig, model, predict_deltas):
     return BL_MAE
 
 
+
+
 def denorm_loss(sig, model, param_dict, loss, predict_deltas):
     """Wrapper for denormed loss functions
 
@@ -274,6 +276,11 @@ def normed_mse(y_true, y_pred):
                     K.cast_to_floatx(K.epsilon()))
     return num/den
 
+def variance(y_true, y_pred):
+    return K.var(y_pred)
+
+def mean(y_true, y_pred):
+    return K.mean(y_pred)
 
 def max_diff_sum_2(y_true, y_pred):
     """Maximum difference over sum squared

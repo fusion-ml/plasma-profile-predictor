@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'parameters_no_stop_joe2'
+NAME = 'parameters_no_stop_joe_fixed'
 
 def main(scenario_index=-2):
 
@@ -53,8 +53,10 @@ def main(scenario_index=-2):
     ###############
     
     checkpt_dir = os.path.expanduser(f"~/src/plasma-profile-predictor/outputs/{NAME}/")
+    logdir = os.path.join(checkpt_dir, 'logs')
     if not os.path.exists(checkpt_dir):
         os.makedirs(checkpt_dir)
+        os.makedirs(logdir)
         
     ###############
     # scenarios
@@ -70,7 +72,7 @@ def main(scenario_index=-2):
                         'model_type' : 'conv2d',
                         'model_kwargs': {'max_channels': 128,'kernel_initializer':'lecun_normal','l2':1e-4},
                         'std_activation' : 'relu',
-                        'sample_weighting':'std',
+                        'sample_weighting': 'std',
                         'loss_function': 'mae',
                         'loss_function_kwargs':{},
                         'batch_size' : 128,
@@ -81,7 +83,8 @@ def main(scenario_index=-2):
 #                         'raw_data_path':'/scratch/gpfs/jabbate/old_stuff/new_data/final_data.pkl',
                         'process_data':True,
                         'invert_q': True,
-                        'processed_filename_base': '/scratch/gpfs/jabbate/data_60_ms_randomized_',
+                        'processed_filename_base': '/zfsauton2/home/virajm/data/profile_data/processed',
+                        # 'processed_filename_base': '/scratch/gpfs/jabbate/data_60_ms_randomized_',
                         'optimizer': 'adagrad',
                         'optimizer_kwargs': {},
                         'shuffle_generators': True,
@@ -293,8 +296,8 @@ def main(scenario_index=-2):
         scenario['normalization_dict'] = normalization_dict
         if 'processed_filename_base' in scenario.keys():
             base = scenario['processed_filename_base']
-            # with open(os.path.join(base, 'param_dict.pkl'), 'wb') as f:
-                # pickle.dump(param_dict, f)
+            with open(os.path.join(base, 'param_dict.pkl'), 'wb') as f:
+                pickle.dump(scenario, f)
             with open(os.path.join(base, 'train.pkl'), 'wb') as f:
                 pickle.dump(traindata, f)
             with open(os.path.join(base, 'val.pkl'), 'wb') as f:
@@ -304,10 +307,10 @@ def main(scenario_index=-2):
         if 'processed_filename_base' not in scenario.keys():
             scenario['processed_filename_base'] = default_scenario['processed_filename_base']
         
-        if scenario['flattop_only']:
-            scenario['processed_filename_base'] += 'flattop/'
-        else:
-            scenario['processed_filename_base'] += 'all/'
+        # if scenario['flattop_only']:
+        #     scenario['processed_filename_base'] += 'flattop/'
+        # else:
+        #     scenario['processed_filename_base'] += 'all/'
          
         with open(os.path.join(scenario['processed_filename_base'], 'param_dict.pkl'), 'rb') as f:
             param_dict = pickle.load(f)
@@ -427,6 +430,8 @@ def main(scenario_index=-2):
                helpers.custom_losses.mean_diff_sum_2, 
                helpers.custom_losses.max_diff_sum_2, 
                helpers.custom_losses.mean_diff2_sum2, 
+               helpers.custom_losses.variance,
+               helpers.custom_losses.mean,
                helpers.custom_losses.max_diff2_sum2]
     
 
@@ -437,6 +442,7 @@ def main(scenario_index=-2):
     # callbacks.append(EarlyStopping(monitor='val_loss', min_delta=2e-4, patience=8, 
                                    # verbose=1, mode='min'))
     callbacks.append(TimingCallback(time_limit=60*runtimes[scenario_index]))    
+    callbacks.append(TensorBoardWrapper(val_generator, log_dir=logdir, histogram_freq=1))
     if ngpu<=1:
         callbacks.append(ModelCheckpoint(checkpt_dir+scenario['runname']+'.h5', monitor='val_loss',
                                          verbose=0, save_best_only=True,

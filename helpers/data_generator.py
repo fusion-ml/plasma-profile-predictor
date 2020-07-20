@@ -43,6 +43,7 @@ class DataGenerator(Sequence):
         self.profile_targets = target_profile_names.copy()
         self.scalar_inputs = scalar_input_names.copy()
         self.scalar_targets = target_scalar_names.copy()
+        self.targets = self.profile_targets + self.scalar_targets
         self.lookbacks = lookbacks
         self.lookahead = lookahead
         self.predict_deltas = predict_deltas
@@ -137,7 +138,7 @@ class DataGenerator(Sequence):
 
         if self.times_called % len(self) == 0 and self.shuffle:
             self.inds = np.random.permutation(range(len(self)))
-        sample_weights_dict = {'target_'+sig: sample_weights for sig in self.profile_targets}
+        sample_weights_dict = {'target_'+sig: sample_weights for sig in self.targets}
         if self.kwargs.get('return_uncertainties'):
             return inp, targ, sample_weights_dict, uncertainties
         else:
