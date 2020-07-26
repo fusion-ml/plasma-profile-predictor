@@ -133,7 +133,7 @@ class DataGenerator(Sequence):
             else:
                 baseline = 0
 
-            targ['target_' + sig] = self.data[sig][idx * self.batch_size:(idx + 1) * self.batch_size, -1] - baseline
+            targ['target_' + sig] = self.data[sig][idx * self.batch_size:(idx + 1) * self.batch_size, self.lookbacks[sig]  + self.lookahead] - baseline
 
 
         if self.times_called % len(self) == 0 and self.shuffle:

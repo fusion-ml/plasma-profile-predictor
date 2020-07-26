@@ -282,6 +282,16 @@ def variance(y_true, y_pred):
 def mean(y_true, y_pred):
     return K.mean(y_pred)
 
+def zero_mse(y_true, y_pred):
+    return K.mean(K.pow(y_true, 2), axis=-1)
+
+def pred_mean_mse(y_true, y_pred):
+    mean = K.mean(y_true, axis=0, keepdims=True)
+    return K.mean(K.pow(y_true - mean, 2), axis=-1)
+
+def explained_variance_score(y_true, y_pred):
+    return K.mean(1 - K.var(y_true - y_pred, axis=0) / K.var(y_true, axis=0))
+
 def max_diff_sum_2(y_true, y_pred):
     """Maximum difference over sum squared
 

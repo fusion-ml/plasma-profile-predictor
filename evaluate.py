@@ -129,8 +129,12 @@ for folder in folders:
             helpers.normalization.denormalize(
                 valdata.copy(),normalization_dict, verbose=0),
             scenario['normalization_dict'],verbose=0)
+        traindata = helpers.normalization.renormalize(
+            helpers.normalization.denormalize(
+                traindata.copy(),normalization_dict, verbose=0),
+            scenario['normalization_dict'],verbose=0)
 
-        train_generator = DataGenerator(valdata,
+        train_generator = DataGenerator(traindata,
                                         scenario['batch_size'],
                                         scenario['input_profile_names'],
                                         scenario['actuator_names'],
@@ -170,21 +174,26 @@ for folder in folders:
             for sig in targets:
                 baseline[sig].append(sample[1]['target_'+sig])
         baseline = {sig:np.concatenate(baseline[sig],axis=0) for sig in targets}
+        if len(scenario['target_profile_names']) > 0:
+            # get profile data in numpy arrays
+            Y_hat_profiles = np.concatenate([predictions[key] for key in scenario['target_profile_names']], axis=1)
+            Y_profiles = np.concatenate([baseline[key].reshape(predictions[key].shape) for key in scenario['target_profile_names']], axis=1)
 
-        db()
-        # get profile data in numpy arrays
-        Y_hat_profiles = np.concatenate([predictions[key] for key in scenario['target_profile_names']], axis=1)
-        Y_profiles = np.concatenate([baseline[key].reshape(predictions[key].shape) for key in scenario['target_profile_names']], axis=1)
+            explained_variance_profiles = explained_variance_score(Y_profiles, Y_hat_profiles)
+            print(f"Explained variance on profiles: {explained_variance_profiles:.2%}")
 
-        explained_variance_profiles = explained_variance_score(Y_profiles, Y_hat_profiles)
-        print(f"Explained variance on profiles: {explained_variance_profiles:.2%}")
+        if len(scenario['target_scalar_names']) > 0:
+            # get scalar data in numpy arrays
+            Y_hat_scalars = np.concatenate([predictions[key] for key in scenario['target_scalar_names']], axis=1)
+            Y_scalars = np.concatenate([baseline[key].reshape(predictions[key].shape) for key in scenario['target_scalar_names']], axis=1)
 
-        # get scalar data in numpy arrays
-        Y_hat_scalars = np.concatenate([predictions[key] for key in scenario['target_scalar_names']], axis=1)
-        Y_scalars = np.concatenate([baseline[key].reshape(predictions[key].shape) for key in scenario['target_scalar_names']], axis=1)
+            explained_variance_scalars = explained_variance_score(Y_scalars, Y_hat_scalars)
+            print(f"Explained variance on scalars: {explained_variance_scalars:.2%}")
 
-        explained_variance_scalars = explained_variance_score(Y_scalars, Y_hat_scalars)
-        print(f"Explained variance on scalars: {explained_variance_scalars:.2%}")
+            explained_variance_scalars = explained_variance_score(Y_scalars, Y_hat_scalars, multioutput='raw_values')
+            print(f"Broken down:")
+            for i, name in enumerate(scenario['target_scalar_names']):
+                print(f"{name}: {explained_variance_scalars[i]:.2%}")
 
         evaluation_metrics = {}
         for metric_name,metric in metrics.items():

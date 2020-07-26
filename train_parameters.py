@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'parameters_no_stop_joe_fixed'
+NAME = 'parameters_no_stop_joe_thicc2'
 
 def main(scenario_index=-2):
 
@@ -70,13 +70,13 @@ def main(scenario_index=-2):
                         # 'target_scalar_names' : [],# ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
                         'profile_downsample' : 2,
                         'model_type' : 'conv2d',
-                        'model_kwargs': {'max_channels': 128,'kernel_initializer':'lecun_normal','l2':1e-4},
+                        'model_kwargs': {'max_channels': 256,'kernel_initializer':'lecun_normal','l2':1e-4},
                         'std_activation' : 'relu',
                         'sample_weighting': 'std',
                         'loss_function': 'mae',
                         'loss_function_kwargs':{},
                         'batch_size' : 128,
-                        'epochs' : 100,
+                        'epochs' : 300,
                         'flattop_only': True,
                         'predict_deltas' : True,
                         'raw_data_path':'/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl',
@@ -432,6 +432,7 @@ def main(scenario_index=-2):
                helpers.custom_losses.mean_diff2_sum2, 
                helpers.custom_losses.variance,
                helpers.custom_losses.mean,
+               helpers.custom_losses.explained_variance_score,
                helpers.custom_losses.max_diff2_sum2]
     
 
