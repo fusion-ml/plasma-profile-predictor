@@ -29,11 +29,28 @@ class ProfileEnv(Env):
                                            self.scenario['profile_downsample'],
                                            self.scenario['shuffle_generators'],
                                            sample_weights=self.scenario['sample_weighting'])
+        self.bounds = {
+                'dens': (-3, 3),
+                'density_estimate': (-2, 2),
+                'itemp': (-1, 4),
+                'kappa_EFIT01': (-4, 2),
+                'li_EFIT01': (-2, 3),
+                'pinj': (-1.8, 2.5),
+                'q_EFIT01': (-1.2, 2.5),
+                'rotation': (-1, 3.5)
+                'target_density': (-1.2, 2.2),
+                'temp': (-1, 2.4),
+                'tinj': (-1.3, 1.7),
+                'triangularity_bot_EFIT01': (-1.1, 1.3),
+                'triangularity_top_EFIT01': (-1.7, 0.9),
+                'volume_EFIT01': (-1.8, 1.4),
+                }
+
         self.profile_inputs = self.val_generator.profile_inputs
         self.actuator_inputs = self.val_generator.actuator_inputs
         self.scalar_inputs = self.val_generator.scalar_inputs
-        self.action_spaces = spaces.Box(low=-2, high=2, shape=(len(actuator_inputs),))
-        self.observation_space = spaces.Box(low=-2
+        # self.action_spaces = spaces.Box(low=-2, high=2, shape=(len(actuator_inputs),))
+        # self.observation_space = spaces.Box(low=-2
         model_path = scenario_path[:-11] + '.h5'
         if not os.path.exists(model_path):
             raise ValueError(f"Path {model_path} doesn't exist!")
@@ -57,6 +74,7 @@ class ProfileEnv(Env):
         '''
 
     def reset(self):
+        db()
         while True:
             example = self.val_generator[self.i]
             time = self.val_generator.cur_times[0]
