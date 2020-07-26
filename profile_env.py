@@ -79,3 +79,9 @@ class ProfileEnv(gym.env):
 
     def make_states(self, state, action):
         pass
+
+def test_env():
+    
+
+if __name__ == '__main__':
+    test_env()
