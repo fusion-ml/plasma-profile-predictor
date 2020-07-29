@@ -160,8 +160,10 @@ class TensorBoardWrapper(TensorBoard):
         # logs['end_times'] = np.array(logs['end_times'])[-1]
         # logs['epoch_times'] = np.array(logs['epoch_times'])[-1]
         new_logs = logs.copy()
-        del new_logs['end_times']
-        del new_logs['epoch_times']
+        if 'end_times' in new_logs:
+            del new_logs['end_times']
+        if 'epoch_times' in new_logs:
+            del new_logs['epoch_times']
         return super(TensorBoardWrapper, self).on_epoch_end(epoch, new_logs)
 
 

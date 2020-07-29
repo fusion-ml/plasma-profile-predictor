@@ -16,13 +16,14 @@ from helpers.custom_losses import denorm_loss, hinge_mse_loss, percent_baseline_
 from helpers.callbacks import CyclicLR, TensorBoardWrapper, TimingCallback
 from models.LSTMConv2D import get_model_simple_lstm, get_model_conv2d, get_model_linear_systems
 from models.LSTMConv1D import build_lstmconv1d_joe, build_dumb_simple_model
+from models.FCNN_scalars import get_model_fcnn_scalar
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 import tensorflow as tf
 from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'magnetism_128'
+NAME = 'scalar_dense4'
 
 def main(scenario_index=-2):
 
@@ -63,20 +64,21 @@ def main(scenario_index=-2):
     ###############
 
     default_scenario = {'actuator_names': ['target_density','pinj','tinj','curr_target'],
-                        'input_profile_names': ['dens','temp', 'q_EFIT01','rotation', 'press_EFIT01'],
-                        'target_profile_names': ['dens','temp', 'q_EFIT01','rotation', 'press_EFIT01'],
-                        'scalar_input_names' : ['density_estimate', 'bt', 'li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
-                        'target_scalar_names' : ['density_estimate', 'bt', 'li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        'input_profile_names': [], # ['dens','temp','itemp','q_EFIT01','rotation'],
+                        # 'target_profile_names': ['dens','temp','itemp','q_EFIT01','rotation'],
+                        'target_profile_names': [],
+                        'scalar_input_names' : ['density_estimate','li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        'target_scalar_names' : ['density_estimate','li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
                         # 'target_scalar_names' : [],# ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
                         'profile_downsample' : 2,
-                        'model_type' : 'conv2d',
-                        'model_kwargs': {'max_channels': 128,'kernel_initializer':'lecun_normal','l2':1e-4},
+                        'model_type' : 'scalar_dense',
+                        'model_kwargs': {'max_channels': 256,'kernel_initializer':'lecun_normal','l2':1e-4},
                         'std_activation' : 'relu',
                         'sample_weighting': 'std',
                         'loss_function': 'mae',
                         'loss_function_kwargs':{},
                         'batch_size' : 128,
-                        'epochs' : 300,
+                        'epochs' : 200,
                         'flattop_only': True,
                         'predict_deltas' : True,
                         'raw_data_path':'/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl',
@@ -376,7 +378,8 @@ def main(scenario_index=-2):
               'conv2d': get_model_conv2d,
               'linear_systems': get_model_linear_systems,
               'conv1d':  build_lstmconv1d_joe,
-              'simple_dense':  build_dumb_simple_model}
+              'simple_dense':  build_dumb_simple_model,
+              'scalar_dense': get_model_fcnn_scalar}
 
     optimizers_dict = {'sgd': keras.optimizers.SGD,
                   'rmsprop': keras.optimizers.RMSprop,
@@ -432,6 +435,7 @@ def main(scenario_index=-2):
                helpers.custom_losses.mean_diff2_sum2, 
                helpers.custom_losses.variance,
                helpers.custom_losses.mean,
+               helpers.custom_losses.pred_mean_mse,
                helpers.custom_losses.explained_variance_score,
                helpers.custom_losses.max_diff2_sum2]
     
@@ -440,10 +444,10 @@ def main(scenario_index=-2):
     callbacks.append(ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5,
                                        verbose=1, mode='min', min_delta=5e-3,
                                        cooldown=1, min_lr=0))
-    callbacks.append(EarlyStopping(monitor='val_loss', min_delta=2e-4, patience=16,
-                                   verbose=1, mode='min'))
-    # callbacks.append(TimingCallback(time_limit=60*runtimes[scenario_index]))    
-    callbacks.append(TensorBoardWrapper(val_generator, log_dir=logdir, histogram_freq=1))
+    # callbacks.append(EarlyStopping(monitor='val_loss', min_delta=2e-4, patience=8, 
+                                   # verbose=1, mode='min'))
+    callbacks.append(TimingCallback(time_limit=60*runtimes[scenario_index]))    
+    # callbacks.append(TensorBoardWrapper(val_generator, log_dir=logdir, histogram_freq=1))
     if ngpu<=1:
         callbacks.append(ModelCheckpoint(checkpt_dir+scenario['runname']+'.h5', monitor='val_loss',
                                          verbose=0, save_best_only=True,

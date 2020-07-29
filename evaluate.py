@@ -74,7 +74,7 @@ metrics = {'mean_squared_error':mean_squared_error,
 ##########
 base_path = '/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/'
 # folders = ['run_results_no_parameters_no_stop/']
-folders = ['parameters_no_stop_joe/']
+folders = ['fixed_profiles/']
 
 for folder in folders:
     files =  [foo for foo in os.listdir(base_path+folder) if foo.endswith('.pkl')]
@@ -133,6 +133,8 @@ for folder in folders:
             helpers.normalization.denormalize(
                 traindata.copy(),normalization_dict, verbose=0),
             scenario['normalization_dict'],verbose=0)
+
+        db()
 
         train_generator = DataGenerator(traindata,
                                         scenario['batch_size'],

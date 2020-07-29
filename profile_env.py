@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 
 from helpers.data_generator import DataGenerator
+from helpers.normalization import denormalize
 
 
 class ProfileEnv(Env):
@@ -34,10 +35,11 @@ class ProfileEnv(Env):
                 'curr_target': (-1.3, 1.6),
                 'dens': (-3, 3),
                 'density_estimate': (-2, 2),
-                'itemp': (-1, 4),
+                # 'itemp': (-1, 4),
                 'kappa_EFIT01': (-4, 2),
                 'li_EFIT01': (-2, 3),
                 'pinj': (-1.8, 2.5),
+                'press_EFIT01': (-0.7, 3.7),
                 'q_EFIT01': (-1.2, 2.5),
                 'rotation': (-1, 3.5),
                 'target_density': (-1.2, 2.2),
@@ -54,6 +56,7 @@ class ProfileEnv(Env):
         self.target_profiles = self.scenario['target_profile_names']
         self.target_scalars = self.scenario['target_scalar_names']
         self.lookahead = self.scenario['lookahead']
+        self.normalization_dict = self.scenario['normalization_dict']
         self.profile_length = 33
         self.action_space = spaces.Box(low=np.array([self.bounds[act][0] for act in self.actuator_inputs]),
                                         high=np.array([self.bounds[act][1] for act in self.actuator_inputs]))
@@ -83,6 +86,7 @@ class ProfileEnv(Env):
         self.i = 0
         self.earliest_start_time = 500
         self.latest_start_time = 1000
+        self.mu_0 = 1.256637E-6
         '''
         self.validation_data = [inputs['input_' + sig] for sig in self.profile_inputs] + \
                                [inputs['input_past_' + sig] for sig in self.actuator_inputs] + \
@@ -143,13 +147,26 @@ class ProfileEnv(Env):
         output = self.predict(states)
         self.set_state(states, action, output)
         # self._state = dict(zip(self.target_profiles + self.target_scalars, output))
-        reward = self.compute_reward(self.state)
+        reward = self.compute_reward(self._state)
         self.t += self.timestep
         done = self.t > self.t_max
         return self.state, reward, done, {}
 
+    def compute_beta_n(self, state):
+        pressure_idx = self.profile_inputs.index('press_EFIT01')
+        pressure_profile = state[pressure_idx * self.profile_length : (pressure_idx + 1) * self.profile_length]
+        mean_plasma_pressure = np.mean(pressure_profile)  # TODO: take the geometry of the torus into account
+        mean_total_field_strength = 4  # TODO: figure out how to get this value
+        beta_n = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength
+        return beta_n
+
+
+
     def compute_reward(self, state):
-        return 0
+        db()
+        denorm_state = denormalize(state, self.normalization_dict)
+        beta_n = self.compute_beta_n(denorm_state)
+        return beta_n
 
     def predict(self, states):
         return self._model.predict(states)
