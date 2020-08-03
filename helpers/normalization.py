@@ -247,8 +247,16 @@ def denormalize(data, param_dict, verbose=1):
         data=data.copy() # don't make changes in place
         for key in tqdm(data.keys(), desc='Denormalizing', ascii=True, dynamic_ncols=True,
                         disable=not verbose==1):
+            data_key = key
+            param_key = key
+            if param_key.startswith("input_"):
+                param_key = param_key[6:]
+            if param_key.startswith("past_"):
+                param_key = param_key[5:]
+            if param_key.startswith("future_"):
+                param_key = param_key[7:]
             if key not in ['time', 'shotnum'] and 'error' not in key:
-                data[key] = denormalize_arr(data[key], param_dict[key])
+                data[key] = denormalize_arr(data[key], param_dict[param_key])
         for key in data.keys():
             if 'error' in key:
                 data[key] = denormalize_arr(data[key]+renormalize(data[key[6:]],param_dict[key[6:]]),param_dict[key[6:]]) - data[key[6:]]

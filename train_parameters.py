@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'magnetism_128'
+NAME = 'beta_n_signals'
 
 def main(scenario_index=-2):
 
@@ -65,8 +65,8 @@ def main(scenario_index=-2):
     default_scenario = {'actuator_names': ['target_density','pinj','tinj','curr_target'],
                         'input_profile_names': ['dens','temp', 'q_EFIT01','rotation', 'press_EFIT01'],
                         'target_profile_names': ['dens','temp', 'q_EFIT01','rotation', 'press_EFIT01'],
-                        'scalar_input_names' : ['density_estimate', 'bt', 'li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
-                        'target_scalar_names' : ['density_estimate', 'bt', 'li_EFIT01','volume_EFIT01','kappa_EFIT01', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        'scalar_input_names' : ['density_estimate', 'bt', 'li_EFIT01','volume_EFIT01','kappa_EFIT01', 'a_EFIT01', 'curr', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
+                        'target_scalar_names' : ['density_estimate', 'bt', 'li_EFIT01','volume_EFIT01','kappa_EFIT01', 'a_EFIT01', 'curr', 'triangularity_top_EFIT01','triangularity_bot_EFIT01'],
                         # 'target_scalar_names' : [],# ['density_estimate','li_EFIT01','volume_EFIT01','triangularity_top_EFIT01','triangularity_bot_EFIT01'],
                         'profile_downsample' : 2,
                         'model_type' : 'conv2d',

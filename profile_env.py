@@ -3,6 +3,7 @@ from gym import Env, spaces
 import keras
 import pickle
 import numpy as np
+from ipdb import set_trace as db
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
@@ -32,6 +33,9 @@ class ProfileEnv(Env):
                                            sample_weights=self.scenario['sample_weighting'])
         self.time_lookback = self.scenario['lookbacks']['time']
         self.bounds = {
+                'a_EFIT01': (-1.8, 1.95),
+                'bt': (-0.34, 5.9),
+                'curr': (-4.6, 1.4),
                 'curr_target': (-1.3, 1.6),
                 'dens': (-3, 3),
                 'density_estimate': (-2, 2),
@@ -139,9 +143,6 @@ class ProfileEnv(Env):
             new_state['input_' + scalar] = np.concatenate((states['input_' + scalar][0, -3:], interpolated_scalar))
         self._state = new_state
 
-
-
-
     def step(self, action):
         states = self.make_states(self._state, action)
         output = self.predict(states)
@@ -153,18 +154,35 @@ class ProfileEnv(Env):
         return self.state, reward, done, {}
 
     def compute_beta_n(self, state):
-        pressure_idx = self.profile_inputs.index('press_EFIT01')
-        pressure_profile = state[pressure_idx * self.profile_length : (pressure_idx + 1) * self.profile_length]
-        mean_plasma_pressure = np.mean(pressure_profile)  # TODO: take the geometry of the torus into account
-        mean_total_field_strength = 4  # TODO: figure out how to get this value
-        beta_n = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength
+        pressure_profile = state['input_press_EFIT01']
+        mean_total_field_strength = state['input_bt'][..., -1]  # Here we're making the assumption that B ~= B_t as
+                                                                # most of the magnetic field is composed of the
+                                                                # toroidal component
+        mean_plasma_pressure = np.mean(pressure_profile, axis=-1)  # TODO: take the geometry of the torus into account
+        beta = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength ** 2
+        minor_radius = state['a_EFIT01'][..., -1]
+        current = state['curr'][..., -1]
+        beta_n = beta * minor_radius * mean_total_field_strength / current
         return beta_n
 
-
+    def unroll(self, obs, action_sequence):
+        """
+        obs: batch_size * obs_dim (ndarray)
+        action_sequence: batch_size * timesteps * action_dim
+        """
+        n_timesteps = action_sequence.shape[1]
+        obs_sequence = [obs]
+        rew_sequence = []
+        for i in range(n_timesteps):
+            model_input = self.make_state(obs, action_sequence[:, i, :])
+            obs = self.predict(model_input)
+            rewards = self.compute_rewards(obs)
+            obs_sequence.append(obs)
+            rew_sequence.append(rewards)
+        return np.concatenate(obs_sequence), np.concatenate(rew_sequence)
 
     def compute_reward(self, state):
-        db()
-        denorm_state = denormalize(state, self.normalization_dict)
+        denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         beta_n = self.compute_beta_n(denorm_state)
         return beta_n
 
@@ -174,13 +192,15 @@ class ProfileEnv(Env):
     def make_states(self, state, actions):
         if actions.ndim == 1:
             actions = actions[np.newaxis, ...]
-        n_actions = actions.shape[0]
-        states = {}
-        for name, array in state.items():
-            repeated_array = np.tile(array, (n_actions, 1))
-            if repeated_array.shape[-1] == self.profile_length and repeated_array.ndim == 2:
-                repeated_array = repeated_array[:, np.newaxis, :]
-            states[name] = repeated_array
+        if not (state.shape[0] == actions.shape[0] and state.shape[0] > 1):
+            # have to repeat state
+            n_actions = actions.shape[0]
+            states = {}
+            for name, array in state.items():
+                repeated_array = np.tile(array, (n_actions, 1))
+                if repeated_array.shape[-1] == self.profile_length and repeated_array.ndim == 2:
+                    repeated_array = repeated_array[:, np.newaxis, :]
+                states[name] = repeated_array
         actions = self.interpolate_actions(states, actions)
         states.update(actions)
         return states
@@ -199,7 +219,7 @@ class ProfileEnv(Env):
 
 
 def test_env():
-    env = ProfileEnv(scenario_path="/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/parameters_no_stop_joe_thicc/model-conv2d_profiles-dens-temp-itemp-q_EFIT01-rotation_act-target_density-pinj-tinj-curr_target_22Jul20-08-51_params.pkl")
+    env = ProfileEnv(scenario_path="/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl")
     env.reset()
     while True:
         action = env.action_space.sample()
