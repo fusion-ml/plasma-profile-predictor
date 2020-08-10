@@ -9,7 +9,8 @@ from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
 
 
-SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"
+SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
+
 
 class ProfileEnv(Env):
     def __init__(self, scenario_path):
@@ -64,7 +65,7 @@ class ProfileEnv(Env):
         self.normalization_dict = self.scenario['normalization_dict']
         self.profile_length = 33
         self.action_space = spaces.Box(low=np.array([self.bounds[act][0] for act in self.actuator_inputs]),
-                                        high=np.array([self.bounds[act][1] for act in self.actuator_inputs]))
+                                       high=np.array([self.bounds[act][1] for act in self.actuator_inputs]))
         obs_bot = []
         obs_top = []
         for sig in self.profile_inputs:
@@ -120,9 +121,9 @@ class ProfileEnv(Env):
         state = [self._state['input_' + sig].flatten() for sig in self.profile_inputs] + \
                 [self._state['input_past_' + sig].flatten() for sig in self.actuator_inputs] + \
                 [self._state['input_' + sig].flatten() for sig in self.scalar_inputs]
+        # don't use future actuators because they are the action
+        # [self._state['input_future_' + sig] for sig in self.actuator_inputs] + \
         return np.array(state)
-                # don't use future actuators because they are the action
-                # [self._state['input_future_' + sig] for sig in self.actuator_inputs] + \
 
     def seed(self, seed=None):
         pass
@@ -165,8 +166,8 @@ class ProfileEnv(Env):
         beta = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength ** 2
         minor_radius = state['input_a_EFIT01'][..., -1]  # meters
         minor_radius = np.maximum(minor_radius, 0)
-        current = state['input_curr'][..., -1] / 1e6 # convert to MA from amps
-        current = np.maximum(current, 1e-8) # use 1e-8 for numerical stability
+        current = state['input_curr'][..., -1] / 1e6  # convert to MA from amps
+        current = np.maximum(current, 1e-8)  # use 1e-8 for numerical stability
         beta_n = beta * minor_radius * mean_total_field_strength / current
         print(beta_n)
         return beta_n
@@ -176,11 +177,13 @@ class ProfileEnv(Env):
         obs: batch_size * obs_dim (ndarray)
         action_sequence: batch_size * timesteps * action_dim
         """
+        db()
+        batch_size = action_sequence.shape[0]
         n_timesteps = action_sequence.shape[1]
-        obs_sequence = [obs]
+        obs_sequence = [obs] * batch_size
         rew_sequence = []
         for i in range(n_timesteps):
-            model_input = self.make_state(obs, action_sequence[:, i, :], repeat_state=i==0)
+            model_input = self.make_state(obs, action_sequence[:, i, :], repeat_state=(i==0))
             obs = self.predict(model_input)
             rewards = self.compute_rewards(obs)
             obs_sequence.append(obs)
@@ -238,5 +241,21 @@ def test_env():
         if done:
             break
 
+def test_rollout():
+    env = ProfileEnv(scenario_path=SCENARIO_PATH)
+    env.reset()
+    n_actions = 50
+    n_steps = 10
+    actions = []
+    for _ in range(n_actions):
+        traj_actions = []
+        for _ in range(n_steps):
+            traj_actions.append(env.action_space.sample())
+        actions.append(traj_actions)
+    actions = np.array(actions)
+    states = env.unroll(actions)
+
+
 if __name__ == '__main__':
     test_env()
+    test_rollout()
