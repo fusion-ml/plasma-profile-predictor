@@ -223,7 +223,7 @@ class ProfileEnv(Env):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         beta_n = self.compute_beta_n(denorm_state)
-        return (beta_n - self.target_beta_n) ** 2
+        return -(beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
         return self._model.predict(states)
