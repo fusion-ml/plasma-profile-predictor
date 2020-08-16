@@ -35,6 +35,7 @@ class ProfileEnv(Env):
                                            self.scenario['shuffle_generators'],
                                            sample_weights=self.scenario['sample_weighting'])
         self.time_lookback = self.scenario['lookbacks']['time']
+        self.target_beta_n = 2.
         self.bounds = {
                 'a_EFIT01': (-1.8, 1.95),
                 'bt': (-0.34, 5.9),
@@ -177,7 +178,6 @@ class ProfileEnv(Env):
         obs: batch_size * obs_dim (ndarray)
         action_sequence: batch_size * timesteps * action_dim
         """
-        db()
         batch_size = action_sequence.shape[0]
         n_timesteps = action_sequence.shape[1]
         obs_sequence = [obs] * batch_size
@@ -193,7 +193,7 @@ class ProfileEnv(Env):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         beta_n = self.compute_beta_n(denorm_state)
-        return beta_n
+        return (beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
         return self._model.predict(states)
