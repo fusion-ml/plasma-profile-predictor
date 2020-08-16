@@ -3,7 +3,6 @@ from gym import Env, spaces
 import keras
 import pickle
 import numpy as np
-from ipdb import set_trace as db
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
@@ -111,50 +110,78 @@ class ProfileEnv(Env):
                 # TODO: arrange the data in state, return it
                 self._state = example
                 self.t = 0
-                return self.state
+                return self.obs
             self.i += 1
             if self.i == len(self.val_generator):
                 print("Went through whole generator, restarting.")
                 self.i = 0
 
     @property
-    def state(self):
+    def obs(self):
         state = [self._state['input_' + sig].flatten() for sig in self.profile_inputs] + \
                 [self._state['input_past_' + sig].flatten() for sig in self.actuator_inputs] + \
                 [self._state['input_' + sig].flatten() for sig in self.scalar_inputs]
         # don't use future actuators because they are the action
         # [self._state['input_future_' + sig] for sig in self.actuator_inputs] + \
-        return np.array(state)
+        return np.concatenate(state)
+
+    def state_to_obs(self, state):
+        state = [self._state['input_' + sig].reshape((-1, self.profile_length)) for sig in self.profile_inputs] + \
+                [self._state['input_past_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.actuator_inputs] + \
+                [self._state['input_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.scalar_inputs]
+        return np.concatenate(state, axis=1)
+
+    def obs_to_state(self, obs):
+        # obs is a vector, state is a dict
+        state = {}
+        for i, sig in enumerate(self.profile_inputs):
+            state['input_' + sig] = obs[..., i * self.profile_length:(i + 1) * self.profile_length]
+        total_profile_inputs = len(self.profile_inputs) * self.profile_length
+        scalar_timesteps = self.time_lookback + 1
+        for i, sig in enumerate(self.actuator_inputs):
+            state['input_past_' + sig] = obs[..., total_profile_inputs + (scalar_timesteps * i):total_profile_inputs +
+                                             (scalar_timesteps * (i + 1))]
+        total_prev_inputs = total_profile_inputs + scalar_timesteps * len(self.actuator_inputs)
+        for i, sig in enumerate(self.scalar_inputs):
+            state['input_' + sig] = obs[..., total_prev_inputs + (scalar_timesteps * i):total_prev_inputs +
+                                             (scalar_timesteps * (i + 1))]
+        return state
+
 
     def seed(self, seed=None):
         pass
 
-    def set_state(self, states, action, output):
+    def output_to_state(self, states, action, output):
         new_state = {}
         for i, prof in enumerate(self.target_profiles):
-            new_state['input_' + prof] = states['input_' + prof][0, ...] + output[i][0, ...]
+            baseline = states['input_' + prof][:, 0, :]
+            new_state['input_' + prof] = baseline + output[i]
 
         for act in self.actuator_inputs:
-            new_state['input_past_' + act] = np.concatenate((states['input_past_' + act][0, -3:], states['input_future_' + act][0, :]))
+            new_state['input_past_' + act] = np.concatenate((states['input_past_' + act][:, -3:],
+                                                             states['input_future_' + act]), axis=1)
 
         for i, scalar in enumerate(self.scalar_inputs):
             i += len(self.target_profiles)
-            last_scalar = states['input_' + scalar][0, -1]
-            new_last_scalar = last_scalar + output[i][0, 0]
-            theta = ((np.arange(self.lookahead) + 1) / self.lookahead)
+            last_scalar = states['input_' + scalar][:, -1:]
+            new_last_scalar = last_scalar + output[i][:, :1]
+            theta = ((np.arange(self.lookahead) + 1) / self.lookahead)[np.newaxis, ...]
             interpolated_scalar = theta * new_last_scalar + (1 - theta) * last_scalar
-            new_state['input_' + scalar] = np.concatenate((states['input_' + scalar][0, -3:], interpolated_scalar))
-        self._state = new_state
+            if interpolated_scalar.ndim == 1:
+                interpolated_scalar = interpolated_scalar[np.newaxis, ...]
+            new_state['input_' + scalar] = np.concatenate((states['input_' + scalar][:, -3:], interpolated_scalar),
+                                                          axis=1)
+        return new_state
 
     def step(self, action):
         states = self.make_states(self._state, action)
         output = self.predict(states)
-        self.set_state(states, action, output)
+        self._state = self.output_to_state(states, action, output)
         # self._state = dict(zip(self.target_profiles + self.target_scalars, output))
         reward = self.compute_reward(self._state)
         self.t += self.timestep
         done = self.t > self.t_max
-        return self.state, reward, done, {}
+        return self.obs, reward, done, {}
 
     def compute_beta_n(self, state):
         pressure_profile = state['input_press_EFIT01']  # Pa
@@ -170,7 +197,6 @@ class ProfileEnv(Env):
         current = state['input_curr'][..., -1] / 1e6  # convert to MA from amps
         current = np.maximum(current, 1e-8)  # use 1e-8 for numerical stability
         beta_n = beta * minor_radius * mean_total_field_strength / current
-        print(beta_n)
         return beta_n
 
     def unroll(self, obs, action_sequence):
@@ -180,13 +206,17 @@ class ProfileEnv(Env):
         """
         batch_size = action_sequence.shape[0]
         n_timesteps = action_sequence.shape[1]
-        obs_sequence = [obs] * batch_size
+        obs = np.tile(obs, (batch_size, 1))
+        obs_sequence = [obs]
         rew_sequence = []
+        state = self.obs_to_state(obs)
         for i in range(n_timesteps):
-            model_input = self.make_state(obs, action_sequence[:, i, :], repeat_state=(i==0))
+            action = action_sequence[:, i, :]
+            model_input = self.make_states(state, action)
             obs = self.predict(model_input)
-            rewards = self.compute_rewards(obs)
-            obs_sequence.append(obs)
+            state = self.output_to_state(model_input, action, obs)
+            rewards = self.compute_reward(state)
+            obs_sequence.append(self.state_to_obs(state))
             rew_sequence.append(rewards)
         return np.concatenate(obs_sequence), np.concatenate(rew_sequence)
 
@@ -198,21 +228,18 @@ class ProfileEnv(Env):
     def predict(self, states):
         return self._model.predict(states)
 
-    def make_states(self, state, actions, repeat_state=False):
+    def make_states(self, state, actions):
         if actions.ndim == 1:
             actions = actions[np.newaxis, ...]
-        '''
-        if repeat_state:
-            # have to repeat state
-            n_actions = actions.shape[0]
-        '''
         states = {}
         n_actions = actions.shape[0]
         for name, array in state.items():
-            repeated_array = np.tile(array, (n_actions, 1))
-            if repeated_array.shape[-1] == self.profile_length and repeated_array.ndim == 2:
-                repeated_array = repeated_array[:, np.newaxis, :]
-            states[name] = repeated_array
+            if array.ndim == 1:
+                array = array[np.newaxis, ...]
+            # repeated_array = array
+            if array.shape[-1] == self.profile_length and array.ndim == 2:
+                array = array[:, np.newaxis, :]
+            states[name] = array
         actions = self.interpolate_actions(states, actions)
         states.update(actions)
         return states
@@ -220,8 +247,8 @@ class ProfileEnv(Env):
     def interpolate_actions(self, states, actions):
         new_actions = {}
         for i, sig in enumerate(self.actuator_inputs):
-            old_action = states['input_past_' + sig][0, -1]
-            new_action = actions[:, i]
+            old_action = states['input_past_' + sig][:, -1:]
+            new_action = actions[:, i:i+1]
             theta = ((np.arange(self.lookahead) + 1) / self.lookahead)[np.newaxis, ...]
             interpolated_action = theta * new_action + (1 - theta) * old_action
             new_actions['input_future_' + sig] = interpolated_action
@@ -243,7 +270,7 @@ def test_env():
 
 def test_rollout():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
-    env.reset()
+    state = env.reset()
     n_actions = 50
     n_steps = 10
     actions = []
@@ -253,7 +280,7 @@ def test_rollout():
             traj_actions.append(env.action_space.sample())
         actions.append(traj_actions)
     actions = np.array(actions)
-    states = env.unroll(actions)
+    states = env.unroll(state, actions)
 
 
 if __name__ == '__main__':
