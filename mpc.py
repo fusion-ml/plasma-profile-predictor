@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from profile_env import ProfileEnv, SCENARIO_PATH
+import numpy as np
 from ipdb import set_trace as db
+
 
 class MPC(ABC):
     def __init__(self, env, sequence_length):
@@ -17,12 +19,21 @@ class MPC(ABC):
     def __call__(self, state):
         return self.plan(state)
 
+
 class RS(MPC):
     def __init__(self, env, sequence_length, shots):
         super().__init__(env, sequence_length)
         self.shots = shots
 
     def plan(self, state):
+        action_sequences = []
+        for seqnum in range(self.shots):
+            sequence = []
+            for step in range(self.sequence_length):
+                sequence.append(self.env.action_space.sample())
+            action_sequences.append(sequence)
+        action_sequences = np.array(action_sequences)
+        obs_sequence, rew_sequence = self.env.unroll(state, action_sequences)
         db()
 
 
@@ -32,6 +43,7 @@ class CEM(MPC):
 
     def plan(self, state):
         pass
+
 
 def test_rs():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
