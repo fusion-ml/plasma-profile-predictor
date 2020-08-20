@@ -12,7 +12,6 @@ from keras.callbacks import TensorBoard
 from helpers.normalization import normalize
 from helpers.pruning_functions import remove_dudtrip, remove_I_coil, remove_ECH, remove_gas, remove_nan, remove_non_gas_feedback, remove_non_beta_feedback
 from helpers import exclude_shots
-from ipdb import set_trace as db
 
 
 class DataGenerator(Sequence):

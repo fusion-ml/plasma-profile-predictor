@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
+from profile_env import ProfileEnv, SCENARIO_PATH
+from ipdb import set_trace as db
 
 class MPC(ABC):
-    def __init__(self, env):
+    def __init__(self, env, sequence_length):
         self.env = env
+        self.sequence_length = sequence_length
 
     @abstractmethod
     def plan(self, state):
@@ -15,16 +18,16 @@ class MPC(ABC):
         return self.plan(state)
 
 class RS(MPC):
-    def __init__(self, env, shots):
-        super().__init__(env)
+    def __init__(self, env, sequence_length, shots):
+        super().__init__(env, sequence_length)
         self.shots = shots
 
     def plan(self, state):
-        pass
+        db()
 
 
 class CEM(MPC):
-    def __init__(self, env, popsize, n_elites, n_iters):
+    def __init__(self, env, sequence_length, popsize, n_elites, n_iters):
         pass
 
     def plan(self, state):
@@ -33,7 +36,7 @@ class CEM(MPC):
 def test_rs():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
     state = env.reset()
-    rs = RS(env, 1000)
+    rs = RS(env, 10, 1000)
     total_reward = 0
     done = False
     while not done:

@@ -34,7 +34,7 @@ class ProfileEnv(Env):
                                            self.scenario['shuffle_generators'],
                                            sample_weights=self.scenario['sample_weighting'])
         self.time_lookback = self.scenario['lookbacks']['time']
-        self.target_beta_n = 2.
+        self.target_beta_n = 1.5
         self.bounds = {
                 'a_EFIT01': (-1.8, 1.95),
                 'bt': (-0.34, 5.9),
@@ -84,7 +84,6 @@ class ProfileEnv(Env):
             raise ValueError(f"Path {model_path} doesn't exist!")
         self._model = keras.models.load_model(model_path, compile=False)
         self._state = None
-        print('loaded model: ' + model_path.split('/')[-1])
         self._state = None
         self.t = None
         self.timestep = 50
