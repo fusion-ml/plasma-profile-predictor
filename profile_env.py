@@ -6,6 +6,7 @@ import numpy as np
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
+from ipdb import set_trace as db
 
 
 SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
@@ -125,9 +126,9 @@ class ProfileEnv(Env):
         return np.concatenate(state)
 
     def state_to_obs(self, state):
-        state = [self._state['input_' + sig].reshape((-1, self.profile_length)) for sig in self.profile_inputs] + \
-                [self._state['input_past_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.actuator_inputs] + \
-                [self._state['input_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.scalar_inputs]
+        state = [state['input_' + sig].reshape((-1, self.profile_length)) for sig in self.profile_inputs] + \
+                [state['input_past_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.actuator_inputs] + \
+                [state['input_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.scalar_inputs]
         return np.concatenate(state, axis=1)
 
     def obs_to_state(self, obs):
@@ -206,7 +207,7 @@ class ProfileEnv(Env):
         batch_size = action_sequence.shape[0]
         n_timesteps = action_sequence.shape[1]
         obs = np.tile(obs, (batch_size, 1))
-        obs_sequence = [obs]
+        obs_sequence = []
         rew_sequence = []
         state = self.obs_to_state(obs)
         for i in range(n_timesteps):
@@ -217,7 +218,8 @@ class ProfileEnv(Env):
             rewards = self.compute_reward(state)
             obs_sequence.append(self.state_to_obs(state))
             rew_sequence.append(rewards)
-        return np.concatenate(obs_sequence), np.concatenate(rew_sequence)
+        obs_sequence, rew_sequence = np.stack(obs_sequence), np.stack(rew_sequence)
+        return np.transpose(obs_sequence, (1, 0, 2)), np.transpose(rew_sequence, (1, 0))
 
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
