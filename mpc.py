@@ -6,11 +6,11 @@ from ipdb import set_trace as db
 
 
 class MPC(ABC):
-    def __init__(self, env, sequence_length, discount_rate=1):
+    def __init__(self, env, horizon, discount_rate=1):
         self.env = env
-        self.sequence_length = sequence_length
+        self.horizon = horizon
         self.discount_rate = discount_rate
-        self.discount_array = np.power(self.discount_rate, range(sequence_length))
+        self.discount_array = np.power(self.discount_rate, range(horizon))
 
     @abstractmethod
     def plan(self, state):
@@ -27,15 +27,15 @@ class MPC(ABC):
 
 
 class RS(MPC):
-    def __init__(self, env, sequence_length, shots):
-        super().__init__(env, sequence_length)
+    def __init__(self, env, horizon, shots):
+        super().__init__(env, horizon)
         self.shots = shots
 
     def plan(self, state):
         action_sequences = []
         for seqnum in range(self.shots):
             sequence = []
-            for step in range(self.sequence_length):
+            for step in range(self.horizon):
                 sequence.append(self.env.action_space.sample())
             action_sequences.append(sequence)
         action_sequences = np.array(action_sequences)
@@ -48,8 +48,8 @@ class RS(MPC):
 
 
 class CEM(MPC):
-    def __init__(self, env, sequence_length, popsize, n_elites, n_iters, alpha=0.25, epsilon=1e-3):
-        super().__init__(env, sequence_length)
+    def __init__(self, env, horizon, popsize, n_elites, n_iters, alpha=0.25, epsilon=1e-3):
+        super().__init__(env, horizon)
         self.popsize = popsize
         self.n_elites = n_elites
         self.n_iters = n_iters
@@ -58,14 +58,14 @@ class CEM(MPC):
         self.ac_ub = self.env.action_space.high
         self.ac_lb = self.env.action_space.low
         self.action_dim = len(self.ac_ub)
-        self.sol_dim = self.action_dim * self.sequence_length
+        self.sol_dim = self.action_dim * self.horizon
         self.init_mean = None
         self.init_var = None
         self.reset()
 
     def reset(self):
-        self.init_mean = np.tile((self.ac_ub + self.ac_lb) / 2, (self.sequence_length, 1))
-        self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.sequence_length, 1])
+        self.init_mean = np.tile((self.ac_ub + self.ac_lb) / 2, (self.horizon, 1))
+        self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.horizon, 1])
 
     def plan(self, state):
         mean, var, t = self.init_mean, self.init_var, 0
@@ -75,7 +75,7 @@ class CEM(MPC):
             lb_dist, ub_dist = mean - self.ac_lb, self.ac_ub - mean
             constrained_var = np.minimum(np.minimum(np.square(lb_dist / 2), np.square(ub_dist / 2)), var)
 
-            samples = X.rvs(size=[self.popsize, self.sequence_length, self.action_dim]) * np.sqrt(constrained_var) + mean
+            samples = X.rvs(size=[self.popsize, self.horizon, self.action_dim]) * np.sqrt(constrained_var) + mean
 
             obs_sequence, rew_sequence = self.env.unroll(state, samples)
             discounted_rewards = rew_sequence * self.discount_array

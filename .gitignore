@@ -5,6 +5,7 @@
 *#*
 *~
 *.h5
+get_data.sh
 notebooks/core*
 out.log
 history.npz
