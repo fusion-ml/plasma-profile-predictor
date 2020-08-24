@@ -57,7 +57,7 @@ def main(args):
     for i in trange(args.num_trials):
         states, actions, rewards = run_trial(policy, env)
         episodes.append((states, actions, rewards))
-    episode_path = output_dir / 'epsiodes.pk'
+    episode_path = output_dir / 'episodes.pk'
     with episode_path.open('wb') as f:
         pickle.dump(episodes, f)
 
