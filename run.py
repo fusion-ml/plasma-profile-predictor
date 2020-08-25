@@ -19,7 +19,8 @@ def parse_arguments():
     parser.add_argument("--horizon", type=int, default=10, help="The horizon for optimization")
     parser.add_argument("--alpha_cem", type=float, default=0.25, help="The alpha for CEM")
     parser.add_argument("--epsilon_cem", type=float, default=0.01, help="The epsilon for CEM")
-    parser.add_argument("-ow", name="overwrite", action="store_true")
+    parser.add_argument("-ow", dest="overwrite", action="store_true")
+    return parser.parse_args()
 
 
 def run_trial(policy, env):
