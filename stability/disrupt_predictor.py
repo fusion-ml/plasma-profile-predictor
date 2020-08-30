@@ -9,10 +9,12 @@ import numpy as np
 import pickle as pkl
 from catboost import CatBoostClassifier
 
+
 class DisruptionPrediction(object):
 
     def predict(self, state):
         raise NotImplementedError('Abstract Method')
+
 
 class CatBoostDisruptionPredictor(object):
 
@@ -22,7 +24,7 @@ class CatBoostDisruptionPredictor(object):
                  cb_columns,
                  data_in_columns,
                  dt=1,
-    ):
+                 ):
         self._cb_model = cb_model
         self._data_min_maxs = [np.asarray(data_min_maxs[i][0])
                                for i in range(2)]
@@ -99,12 +101,13 @@ class CatBoostDisruptionPredictor(object):
         slope = np.polyfit(subtimes, subframe, 1)[0]
         return [mean, variance, slope]
 
+
 def load_cb_from_files(cb_model_path,
                        data_min_max_path,
                        cb_column_path,
                        data_in_columns,
                        dt=0.001,
-):
+                       ):
     cb_model = CatBoostClassifier(verbose=False,
                                   depth=15,
                                   l2_leaf_reg=3,
@@ -120,8 +123,8 @@ def load_cb_from_files(cb_model_path,
                                        data_in_columns,
                                        dt=dt)
 
+
 if __name__ == '__main__':
-    import pudb; pudb.set_trace()
     load_cb_from_files('notebooks/stability/models/catboost/model_5-8/model_5-8-2020.cbm',
                        'notebooks/stability/models/catboost/model_5-8/dranges.pkl',
                        'notebooks/stability/models/catboost/model_5-8/headers.pkl',
