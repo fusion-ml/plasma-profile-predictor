@@ -61,21 +61,26 @@ class CEM(MPC):
         self.sol_dim = self.action_dim * self.horizon
         self.init_mean = None
         self.init_var = None
+        self.best_action_sequence = None
+        self.best_action_reward = -np.inf
         self.reset()
 
     def reset(self):
         self.init_mean = np.tile((self.ac_ub + self.ac_lb) / 2, (self.horizon, 1))
-        self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.horizon, 1])
+        self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 2, [self.horizon, 1])
 
     def plan(self, state):
         mean, var, t = self.init_mean, self.init_var, 0
         X = stats.truncnorm(-2, 2, loc=np.zeros_like(mean), scale=np.ones_like(var))
+        self.best_action_sequence = None
+        self.best_action_cost = np.inf
 
         while (t < self.n_iters) and np.max(var) > self.epsilon:
             lb_dist, ub_dist = mean - self.ac_lb, self.ac_ub - mean
             constrained_var = np.minimum(np.minimum(np.square(lb_dist / 2), np.square(ub_dist / 2)), var)
 
             samples = X.rvs(size=[self.popsize, self.horizon, self.action_dim]) * np.sqrt(constrained_var) + mean
+
 
             obs_sequence, rew_sequence = self.env.unroll(state, samples)
             discounted_rewards = rew_sequence * self.discount_array
@@ -88,10 +93,13 @@ class CEM(MPC):
 
             mean = self.alpha * mean + (1 - self.alpha) * new_mean
             var = self.alpha * var + (1 - self.alpha) * new_var
+            if costs.min() < self.best_action_cost:
+                self.best_action_cost = costs.min()
+                self.best_action_sequence = elites[0, ...]
 
             t += 1
         self.init_mean = mean
-        return mean[0, :]
+        return self.best_action_sequence[0, ...]
 
 
 def test_rs():

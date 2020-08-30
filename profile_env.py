@@ -9,7 +9,8 @@ from helpers.normalization import denormalize
 from ipdb import set_trace as db
 
 
-SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
+# SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
+SCENARIO_PATH = '/home/scratch/virajm/tmp/full_params.pkl'
 
 
 class ProfileEnv(Env):
@@ -50,6 +51,7 @@ class ProfileEnv(Env):
                 'press_EFIT01': (-0.7, 3.7),
                 'q_EFIT01': (-1.2, 2.5),
                 'rotation': (-1, 3.5),
+                'rmagx_EFIT01': (-2.3, 2),
                 'target_density': (-1.2, 2.2),
                 'temp': (-1, 2.4),
                 'tinj': (-1.3, 1.7),
@@ -87,7 +89,7 @@ class ProfileEnv(Env):
         self._state = None
         self._state = None
         self.t = None
-        self.timestep = 50
+        self.timestep = 200
         self.t_max = 2200
         self.i = 0
         self.earliest_start_time = 500

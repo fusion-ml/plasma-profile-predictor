@@ -1,5 +1,5 @@
 import argparse
-from tqdm import trange
+from tqdm import trange, tqdm
 import pickle
 from profile_env import ProfileEnv, SCENARIO_PATH
 from mpc import CEM, RS
@@ -16,7 +16,7 @@ def parse_arguments():
     parser.add_argument("--num_elites", type=int, default=10, help="The number of elites in a CEM run")
     parser.add_argument("--num_iters", type=int, default=10, help="The number of iterations of CEM to run")
     parser.add_argument("--discount_rate", type=float, default=1., help="The discount rate for optimization purposes")
-    parser.add_argument("--horizon", type=int, default=10, help="The horizon for optimization")
+    parser.add_argument("--horizon", type=int, default=5, help="The horizon for optimization")
     parser.add_argument("--alpha_cem", type=float, default=0.25, help="The alpha for CEM")
     parser.add_argument("--epsilon_cem", type=float, default=0.01, help="The epsilon for CEM")
     parser.add_argument("-ow", dest="overwrite", action="store_true")
@@ -36,6 +36,7 @@ def run_trial(policy, env):
         states.append(state)
         actions.append(action)
         rewards.append(reward)
+    tqdm.write(f"Total Reward: {sum(rewards)}")
     return states, actions, rewards
 
 
@@ -55,12 +56,12 @@ def main(args):
                      alpha=args.alpha_cem,
                      epsilon=args.epsilon_cem)
     episodes = []
+    episode_path = output_dir / 'episodes.pk'
     for i in trange(args.num_trials):
         states, actions, rewards = run_trial(policy, env)
         episodes.append((states, actions, rewards))
-    episode_path = output_dir / 'episodes.pk'
-    with episode_path.open('wb') as f:
-        pickle.dump(episodes, f)
+        with episode_path.open('wb') as f:
+            pickle.dump(episodes, f)
 
 
 if __name__ == '__main__':

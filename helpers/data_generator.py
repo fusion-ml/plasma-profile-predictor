@@ -380,7 +380,7 @@ class AutoEncoderDataGenerator(Sequence):
 def process_data(rawdata, sig_names, normalization_method, window_length=1,
                  window_overlap=0, lookbacks={}, lookahead=3, sample_step=5,
                  uniform_normalization=True, train_frac=0.7, val_frac=0.2,
-                 nshots=None,
+                 nshots=None, abs_magfield_current=True,
                  verbose=1, flattop_only=True, randomize=True, **kwargs):
     """Organize data into correct format for training
 
@@ -697,6 +697,11 @@ def process_data(rawdata, sig_names, normalization_method, window_length=1,
                     disable=not verbose == 1):
         alldata[sig] = np.stack(alldata[sig]).astype('float32')
         gc.collect()
+    if abs_magfield_current:
+        if verbose:
+            print("Taking absolute value of current and magnetic field so betan computations can be numerically stable")
+        alldata['bt'] = np.abs(alldata['bt'])
+        alldata['curr'] = np.abs(alldata['curr'])
 
     if verbose:
         print("{} samples total".format(len(alldata['time'])))
