@@ -6,6 +6,7 @@ import numpy as np
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
+from tearing.disrupt_predictor import load_cb_from_files
 from ipdb import set_trace as db
 
 
@@ -95,14 +96,7 @@ class ProfileEnv(Env):
         self.earliest_start_time = 500
         self.latest_start_time = 1000
         self.mu_0 = 1.256637E-6
-        '''
-        self.validation_data = [inputs['input_' + sig] for sig in self.profile_inputs] + \
-                               [inputs['input_past_' + sig] for sig in self.actuator_inputs] + \
-                               [inputs['input_future_' + sig] for sig in self.actuator_inputs] + \
-                               [inputs['input_' + sig] for sig in self.scalar_inputs] + \
-                               [targets['target_' + sig] if len(targets['target_' + sig].shape) == 2 else targets['target_' + sig][:, np.newaxis]
-                                   for sig in self.target_names] + [self.sample_weights for _ in range(len(self.target_names))]
-        '''
+        self.current_beta_n = None
 
     def reset(self):
         while True:
@@ -117,6 +111,7 @@ class ProfileEnv(Env):
             if self.i == len(self.val_generator):
                 print("Went through whole generator, restarting.")
                 self.i = 0
+        self.current_beta_n = None
 
     @property
     def obs(self):
@@ -146,9 +141,8 @@ class ProfileEnv(Env):
         total_prev_inputs = total_profile_inputs + scalar_timesteps * len(self.actuator_inputs)
         for i, sig in enumerate(self.scalar_inputs):
             state['input_' + sig] = obs[..., total_prev_inputs + (scalar_timesteps * i):total_prev_inputs +
-                                             (scalar_timesteps * (i + 1))]
+                                        (scalar_timesteps * (i + 1))]
         return state
-
 
     def seed(self, seed=None):
         pass
@@ -183,14 +177,15 @@ class ProfileEnv(Env):
         reward = self.compute_reward(self._state)
         self.t += self.timestep
         done = self.t > self.t_max
-        return self.obs, reward, done, {}
+        return self.obs, reward, done, {'beta_n': self.current_beta_n}
 
     def compute_beta_n(self, state):
         pressure_profile = state['input_press_EFIT01']  # Pa
-        mean_total_field_strength = np.abs(state['input_bt'][..., -1])  # Here we're making the assumption that B ~= B_t as
+        mean_total_field_strength = np.abs(state['input_bt'][..., -1])
+        # Here we're making the assumption that B ~= B_t as
+        # most of the magnetic field is composed of the
+        # toroidal component. Also denoted in Tesla.
         mean_total_field_strength = np.maximum(mean_total_field_strength, 0)
-                                                                        # most of the magnetic field is composed of the
-                                                                        # toroidal component. Also denoted in Tesla.
         mean_plasma_pressure = np.mean(pressure_profile, axis=-1)  # TODO: take the geometry of the torus into account
         mean_plasma_pressure = np.maximum(mean_plasma_pressure, 0)
         beta = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength ** 2
@@ -225,8 +220,8 @@ class ProfileEnv(Env):
 
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
-        beta_n = self.compute_beta_n(denorm_state)
-        return -(beta_n - self.target_beta_n) ** 2
+        self.current_beta_n = self.compute_beta_n(denorm_state)
+        return -(self.current_beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
         return self._model.predict(states)
@@ -235,7 +230,6 @@ class ProfileEnv(Env):
         if actions.ndim == 1:
             actions = actions[np.newaxis, ...]
         states = {}
-        n_actions = actions.shape[0]
         for name, array in state.items():
             if array.ndim == 1:
                 array = array[np.newaxis, ...]
@@ -258,6 +252,36 @@ class ProfileEnv(Env):
         return new_actions
 
 
+class TearingProfileEnv(ProfileEnv):
+    def __init__(self, scenario_path, tearing_path, rew_coefs):
+        super().__init__(scenario_path)
+        self.tearing_path = tearing_path
+        self.current_tearing_prob = None
+        self.rew_coefs = rew_coefs
+        self.tearing_model = load_cb_from_files(
+                self.tearing_path / 'model.cbm',
+                self.tearing_path / 'dranges.pkl',
+                self.tearing_path / 'headers.pkl',
+                data_in_columns)  # dunno what this is supposed to do
+
+    def reset(self):
+        super().reset()
+        self.current_tearing_prob = None
+
+    def compute_reward(self, state):
+        denorm_state = denormalize(state, self.normalization_dict, verbose=False)
+        beta_n = self.compute_beta_n(denorm_state)
+
+        beta_n_reward = -(beta_n - self.target_beta_n) ** 2
+        self.current_tearing_prob = self.tearing_model(something)
+        exp_term = np.exp(self.rew_coefs[1] * (self.current_tearing_prob - 0.5))
+        dis_loss = self.rew_coefs[0] * (exp_term / (1 + exp_term))
+        return beta_n_reward - dis_loss
+
+    def step(self, action):
+        next_state, reward, done, info = super().step(action)
+        info['tearing_prob'] = self.current_tearing_prob
+        return next_state, reward, done, info
 
 
 def test_env():
@@ -270,6 +294,7 @@ def test_env():
         rewards.append(reward)
         if done:
             break
+
 
 def test_rollout():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
@@ -284,6 +309,7 @@ def test_rollout():
         actions.append(traj_actions)
     actions = np.array(actions)
     states = env.unroll(state, actions)
+    return states
 
 
 if __name__ == '__main__':
