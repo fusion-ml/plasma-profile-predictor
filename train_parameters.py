@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'abs_betan_tearing'
+NAME = 'betan_tearing'
 
 def main(scenario_index=-2):
 
@@ -80,6 +80,7 @@ def main(scenario_index=-2):
                         'batch_size' : 128,
                         'epochs' : 300,
                         'flattop_only': True,
+                        'abs_magfield_current': False,
                         'predict_deltas' : True,
                         'raw_data_path':'/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl',
 #                         'raw_data_path':'/scratch/gpfs/jabbate/old_stuff/new_data/final_data.pkl',
@@ -292,7 +293,8 @@ def main(scenario_index=-2):
                                                               pruning_functions = scenario['pruning_functions'],
                                                               excluded_shots = scenario['excluded_shots'],
                                                               invert_q = scenario['invert_q'],
-                                                              val_idx = scenario['val_idx'])
+                                                              val_idx = scenario['val_idx'],
+                                                              abs_magfield_current=scenario['abs_magfield_current'])
 
         scenario['dt'] = np.mean(np.diff(traindata['time']))/1000 # in seconds
         scenario['normalization_dict'] = normalization_dict

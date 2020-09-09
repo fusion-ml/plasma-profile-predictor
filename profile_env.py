@@ -3,15 +3,18 @@ from gym import Env, spaces
 import keras
 import pickle
 import numpy as np
+from pathlib import Path
+from tqdm import trange
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
-from tearing.disrupt_predictor import load_cb_from_files
+from stability.disrupt_predictor import load_cb_from_files
 from ipdb import set_trace as db
 
 
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
-SCENARIO_PATH = '/home/scratch/virajm/tmp/full_params.pkl'
+SCENARIO_PATH = '/home/scratch/virajm/tmp/betan_tearing_params.pkl'
+TEARING_PATH = Path('/home/scratch/virajm/tmp/tearing')
 
 
 class ProfileEnv(Env):
@@ -111,7 +114,6 @@ class ProfileEnv(Env):
             if self.i == len(self.val_generator):
                 print("Went through whole generator, restarting.")
                 self.i = 0
-        self.current_beta_n = None
 
     @property
     def obs(self):
@@ -258,22 +260,58 @@ class TearingProfileEnv(ProfileEnv):
         self.tearing_path = tearing_path
         self.current_tearing_prob = None
         self.rew_coefs = rew_coefs
+        self.tearing_headers = [('input_kappa_EFIT01', 'kappa'),
+                                ('input_triangularity_top_EFIT01', 'tritop'),
+                                ('input_triangularity_bot_EFIT01', 'tribot'),
+                                ('input_rmagx_EFIT01', 'R0'),
+                                ('input_volume_EFIT01', 'efsvolume'),
+                                ('input_a_EFIT01', 'aminor'),
+                                ('input_density_estimate', 'dssdenest'),
+                                ('input_curr', 'ip'),
+                                ('input_li_EFIT01', 'efsli')]
+        self.tearing_history_window = 100
+        assert self.tearing_history_window % 50 == 0
+        self.tearing_start_lookback = -1 - self.tearing_history_window // 50
+        headers = [dat[1] for dat in self.tearing_headers] + ['efsbetan']
         self.tearing_model = load_cb_from_files(
-                self.tearing_path / 'model.cbm',
-                self.tearing_path / 'dranges.pkl',
-                self.tearing_path / 'headers.pkl',
-                data_in_columns)  # dunno what this is supposed to do
+                str(self.tearing_path / 'model.cbm'),
+                str(self.tearing_path / 'dranges.pkl'),
+                str(self.tearing_path / 'headers.pkl'),
+                headers)
+        self.tearing_input = None
 
     def reset(self):
-        super().reset()
+        state = super().reset()
         self.current_tearing_prob = None
+        self.tearing_input = None
+        super().compute_reward(self._state)
+        return state
+
+    def make_tearing_input(self, state, beta_n, prev_beta_n):
+        tearing_input = []
+        theta = ((np.arange(self.tearing_history_window) + 1) / self.tearing_history_window)[np.newaxis, ...]
+        for state_name, tear_name in self.tearing_headers:
+            start_point = state[state_name][:, self.tearing_start_lookback:self.tearing_start_lookback + 1]
+            end_point = state[state_name][:, -1:]
+            interpolated_data = start_point * (1 - theta) + end_point * theta
+            tearing_input += [interpolated_data]
+        if prev_beta_n.ndim == 1:
+            prev_beta_n = prev_beta_n[:, np.newaxis]
+            beta_n = beta_n[:, np.newaxis]
+        beta_data = prev_beta_n * (1 - theta) + beta_n * theta
+        tearing_input += [beta_data]
+        tearing_input = np.transpose(np.stack(tearing_input), (1, 2, 0))
+        return tearing_input
 
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
-        beta_n = self.compute_beta_n(denorm_state)
-
-        beta_n_reward = -(beta_n - self.target_beta_n) ** 2
-        self.current_tearing_prob = self.tearing_model(something)
+        old_beta_n = self.current_beta_n
+        self.current_beta_n = self.compute_beta_n(denorm_state)
+        if old_beta_n.shape != self.current_beta_n.shape:
+            old_beta_n = np.tile(old_beta_n[0], self.current_beta_n.shape)
+        beta_n_reward = -(self.current_beta_n - self.target_beta_n) ** 2
+        self.tearing_input = self.make_tearing_input(denorm_state, self.current_beta_n, old_beta_n)
+        self.current_tearing_prob = self.tearing_model.multi_predict(self.tearing_input)
         exp_term = np.exp(self.rew_coefs[1] * (self.current_tearing_prob - 0.5))
         dis_loss = self.rew_coefs[0] * (exp_term / (1 + exp_term))
         return beta_n_reward - dis_loss
@@ -281,6 +319,7 @@ class TearingProfileEnv(ProfileEnv):
     def step(self, action):
         next_state, reward, done, info = super().step(action)
         info['tearing_prob'] = self.current_tearing_prob
+        # info['tearing_input'] = self.tearing_input
         return next_state, reward, done, info
 
 
@@ -312,6 +351,65 @@ def test_rollout():
     return states
 
 
+def test_tearing_env():
+    rew_coefs = (1, 1)
+    env = TearingProfileEnv(scenario_path=SCENARIO_PATH, tearing_path=TEARING_PATH, rew_coefs=rew_coefs)
+    env.reset()
+    rewards = []
+    while True:
+        action = env.action_space.sample()
+        next_state, reward, done, info = env.step(action)
+        rewards.append(reward)
+        if done:
+            break
+
+
+def test_tearing_rollout():
+    rew_coefs = (1, 1)
+    env = TearingProfileEnv(scenario_path=SCENARIO_PATH, tearing_path=TEARING_PATH, rew_coefs=rew_coefs)
+    state = env.reset()
+    n_actions = 50
+    n_steps = 10
+    actions = []
+    for _ in range(n_actions):
+        traj_actions = []
+        for _ in range(n_steps):
+            traj_actions.append(env.action_space.sample())
+        actions.append(traj_actions)
+    actions = np.array(actions)
+    states = env.unroll(state, actions)
+    return states
+
+def compute_tearing_stats():
+    rew_coefs = (1, 1)
+    env = TearingProfileEnv(scenario_path=SCENARIO_PATH, tearing_path=TEARING_PATH, rew_coefs=rew_coefs)
+    tearing_inputs = []
+    n_eps = 1000
+    for nep in trange(n_eps):
+        env.reset()
+        done = False
+        while not done:
+            action = env.action_space.sample()
+            next_state, reward, done, info = env.step(action)
+            tearing_inputs.append(info['tearing_input'])
+    tearing_inputs = np.concatenate(tearing_inputs, axis=0).reshape(-1, 10)
+    max_tearing = tearing_inputs.max(axis=0)
+    min_tearing = tearing_inputs.min(axis=0)
+    mean_tearing = tearing_inputs.mean(axis=0)
+    std_tearing = tearing_inputs.std(axis=0)
+    for prof, tear in env.tearing_headers:
+        print(tear)
+    tearing_data = {}
+    for i, proftear in enumerate(env.tearing_headers):
+        tear = proftear[1]
+        tearing_data[tear] = tearing_inputs[:, i]
+    with open('tearing_inputs.pk', 'wb') as f:
+        pickle.dump(tearing_data, f)
+
+
 if __name__ == '__main__':
     test_env()
     test_rollout()
+    test_tearing_env()
+    test_tearing_rollout()
+    compute_tearing_stats()
