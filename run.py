@@ -1,7 +1,7 @@
 import argparse
 from tqdm import trange, tqdm
 import pickle
-from profile_env import ProfileEnv, SCENARIO_PATH
+from profile_env import ProfileEnv, TearingProfileEnv, SCENARIO_PATH, TEARING_PATH
 from mpc import CEM, RS
 from utils import make_output_dir
 
@@ -19,6 +19,7 @@ def parse_arguments():
     parser.add_argument("--horizon", type=int, default=5, help="The horizon for optimization")
     parser.add_argument("--alpha_cem", type=float, default=0.25, help="The alpha for CEM")
     parser.add_argument("--epsilon_cem", type=float, default=0.01, help="The epsilon for CEM")
+    parser.add_argument("--env", default="full", choices=["full", "betan"])
     parser.add_argument("-ow", dest="overwrite", action="store_true")
     return parser.parse_args()
 
@@ -29,20 +30,28 @@ def run_trial(policy, env):
     states = [state]
     actions = []
     rewards = []
+    infos = []
     done = False
     while not done:
         action = policy(state)
-        state, reward, done, _ = env.step(action)
+        state, reward, done, info = env.step(action)
         states.append(state)
         actions.append(action)
         rewards.append(reward)
+        infos.append(info)
     tqdm.write(f"Total Reward: {sum(rewards)}")
-    return states, actions, rewards
+    return states, actions, rewards, infos
 
 
 def main(args):
     output_dir = make_output_dir(args.name, args.overwrite, args)
-    env = ProfileEnv(scenario_path=SCENARIO_PATH)
+    if args.env == "betan":
+        env = ProfileEnv(scenario_path=SCENARIO_PATH)
+    elif args.env == "full":
+        rew_coefs = (9, 10)
+        env = TearingProfileEnv(scenario_path=SCENARIO_PATH,
+                                tearing_path=TEARING_PATH,
+                                rew_coefs=rew_coefs)
     if args.policy == "RS":
         policy = RS(env=env,
                     horizon=args.horizon,
@@ -58,8 +67,8 @@ def main(args):
     episodes = []
     episode_path = output_dir / 'episodes.pk'
     for i in trange(args.num_trials):
-        states, actions, rewards = run_trial(policy, env)
-        episodes.append((states, actions, rewards))
+        states, actions, rewards, infos = run_trial(policy, env)
+        episodes.append((states, actions, rewards, infos))
         with episode_path.open('wb') as f:
             pickle.dump(episodes, f)
 
