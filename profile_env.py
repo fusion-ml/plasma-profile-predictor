@@ -181,7 +181,7 @@ class ProfileEnv(Env):
         done = self.t > self.t_max
         return self.obs, reward, done, {'beta_n': self.current_beta_n}
 
-    def compute_beta_n(self, state):
+    def _compute_beta_n(self, state):
         pressure_profile = state['input_press_EFIT01']  # Pa
         mean_total_field_strength = np.abs(state['input_bt'][..., -1])
         # Here we're making the assumption that B ~= B_t as
@@ -197,6 +197,12 @@ class ProfileEnv(Env):
         current = np.maximum(current, 1e-8)  # use 1e-8 for numerical stability
         beta_n = beta * minor_radius * mean_total_field_strength / current
         return beta_n
+
+    def compute_beta_n(self, obs):
+        state = self.obs_to_state(obs)
+        denorm_state = denormalize(state, self.normalization_dict, verbose=False)
+        return self._compute_beta_n(denorm_state)
+
 
     def unroll(self, obs, action_sequence):
         """
@@ -222,7 +228,7 @@ class ProfileEnv(Env):
 
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
-        self.current_beta_n = self.compute_beta_n(denorm_state)
+        self.current_beta_n = self._compute_beta_n(denorm_state)
         return -(self.current_beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
@@ -306,7 +312,7 @@ class TearingProfileEnv(ProfileEnv):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         old_beta_n = self.current_beta_n
-        self.current_beta_n = self.compute_beta_n(denorm_state)
+        self.current_beta_n = self._compute_beta_n(denorm_state)
         if old_beta_n.shape != self.current_beta_n.shape:
             old_beta_n = np.tile(old_beta_n[0], self.current_beta_n.shape)
         beta_n_reward = -(self.current_beta_n - self.target_beta_n) ** 2
