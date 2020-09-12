@@ -1,11 +1,12 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from policy import Policy
 from profile_env import ProfileEnv, SCENARIO_PATH
 import numpy as np
 from scipy import stats
 from ipdb import set_trace as db
 
 
-class MPC(ABC):
+class MPC(Policy):
     def __init__(self, env, horizon, discount_rate=1):
         self.env = env
         self.horizon = horizon
@@ -81,7 +82,6 @@ class CEM(MPC):
 
             samples = X.rvs(size=[self.popsize, self.horizon, self.action_dim]) * np.sqrt(constrained_var) + mean
 
-
             obs_sequence, rew_sequence = self.env.unroll(state, samples)
             discounted_rewards = rew_sequence * self.discount_array
             costs = -np.sum(discounted_rewards, axis=1)
@@ -113,6 +113,7 @@ def test_rs():
         state, reward, done, _ = env.step(action)
         total_reward += reward
     print(f"Rollout finished with total reward {total_reward}")
+
 
 def test_cem():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
