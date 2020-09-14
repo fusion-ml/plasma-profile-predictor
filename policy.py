@@ -16,7 +16,7 @@ class Policy(ABC):
 
 
 class PID(Policy):
-    def __init__(self, P=0.2, I=0.0, D=0.0, tau=0.2, env=None):
+    def __init__(self, env=None, P=0.2, I=0.0, D=0.0, tau=0.2):
         self.Kp = P
         self.Ki = I
         self.Kd = D
@@ -65,10 +65,10 @@ class PID(Policy):
             return self.output
 
     def __call__(self, obs):
-        betan = self.env.compute_betan(obs)
+        betan = self.env.compute_beta_n(obs)
         action = self.update(betan)
         tinj = 0.5
-        target_density = 1.
+        target_density = 1.0
         target_current = 0.5
         pinj = action
         action = np.array([target_density, tinj, pinj, target_current])

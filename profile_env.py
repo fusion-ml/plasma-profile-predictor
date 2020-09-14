@@ -93,7 +93,8 @@ class ProfileEnv(Env):
         self._state = None
         self._state = None
         self.t = None
-        self.timestep = 200
+        self.timestep = 200  # ms
+        self.tau = 0.2  # seconds
         self.t_max = 2200
         self.i = 0
         self.earliest_start_time = 500
