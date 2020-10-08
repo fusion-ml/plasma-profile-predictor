@@ -97,10 +97,19 @@ class ProfileEnv(Env):
         self.tau = 0.2  # seconds
         self.t_max = 5000
         self.i = 0
-        self.earliest_start_time = 500
-        self.latest_start_time = 1000
+        self.earliest_start_time = 1100
+        self.latest_start_time = 1600
         self.mu_0 = 1.256637E-6
         self.current_beta_n = None
+        self.eps_denominator = 1e-4
+        '''
+        self.validation_data = [inputs['input_' + sig] for sig in self.profile_inputs] + \
+                               [inputs['input_past_' + sig] for sig in self.actuator_inputs] + \
+                               [inputs['input_future_' + sig] for sig in self.actuator_inputs] + \
+                               [inputs['input_' + sig] for sig in self.scalar_inputs] + \
+                               [targets['target_' + sig] if len(targets['target_' + sig].shape) == 2 else targets['target_' + sig][:, np.newaxis]
+                                   for sig in self.target_names] + [self.sample_weights for _ in range(len(self.target_names))]
+        '''
 
     def reset(self):
         while True:
@@ -188,14 +197,14 @@ class ProfileEnv(Env):
         # Here we're making the assumption that B ~= B_t as
         # most of the magnetic field is composed of the
         # toroidal component. Also denoted in Tesla.
-        mean_total_field_strength = np.maximum(mean_total_field_strength, 0)
+        mean_total_field_strength = np.maximum(mean_total_field_strength, self.eps_denominator)
         mean_plasma_pressure = np.mean(pressure_profile, axis=-1)  # TODO: take the geometry of the torus into account
         mean_plasma_pressure = np.maximum(mean_plasma_pressure, 0)
         beta = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength ** 2
         minor_radius = state['input_a_EFIT01'][..., -1]  # meters
         minor_radius = np.maximum(minor_radius, 0)
-        current = state['input_curr'][..., -1] / 1e6  # convert to MA from amps
-        current = np.maximum(current, 1e-8)  # use 1e-8 for numerical stability
+        current = np.abs(state['input_curr'][..., -1] / 1e6)  # convert to MA from amps
+        current = np.maximum(current, self.eps_denominator)  # use eps for numerical stability
         beta_n = beta * minor_radius * mean_total_field_strength / current
         return beta_n
 
