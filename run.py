@@ -41,6 +41,7 @@ def run_trial(policy, env):
         state, reward, done, info = env.step(action)
         states.append(state)
         actions.append(action)
+        tqdm.write(f"Action Reward: {reward}")
         rewards.append(reward)
         infos.append(info)
     tqdm.write(f"Total Reward: {sum(rewards)}")

@@ -13,8 +13,8 @@ from ipdb import set_trace as db
 
 
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
-SCENARIO_PATH = '/home/scratch/virajm/tmp/betan_tearing_params.pkl'
-TEARING_PATH = Path('/home/scratch/virajm/tmp/tearing')
+SCENARIO_PATH = '/home/scratch/virajm/plasma_models/beta_n_signals_params.pkl'
+TEARING_PATH = Path('/home/scratch/virajm/plasma_models/tearing')
 
 
 class ProfileEnv(Env):
@@ -95,7 +95,7 @@ class ProfileEnv(Env):
         self.t = None
         self.timestep = 200  # ms
         self.tau = 0.2  # seconds
-        self.t_max = 2200
+        self.t_max = 5000
         self.i = 0
         self.earliest_start_time = 500
         self.latest_start_time = 1000
