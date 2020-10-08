@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'betan_tearing'
+NAME = 'test'
 
 def main(scenario_index=-2):
 
@@ -74,9 +74,7 @@ def main(scenario_index=-2):
                         'model_type' : 'conv2d',
                         'model_kwargs': {'max_channels': 128,'kernel_initializer':'lecun_normal','l2':1e-4},
                         'std_activation' : 'relu',
-                        'sample_weighting': 'std',
-                        'loss_function': 'mae',
-                        'loss_function_kwargs':{},
+                        'sample_weighting': 'std', 'loss_function': 'mae', 'loss_function_kwargs':{},
                         'batch_size' : 128,
                         'epochs' : 300,
                         'flattop_only': True,

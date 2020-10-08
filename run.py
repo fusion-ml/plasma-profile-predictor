@@ -2,6 +2,7 @@ import argparse
 from tqdm import trange, tqdm
 import pickle
 from profile_env import ProfileEnv, TearingProfileEnv, SCENARIO_PATH, TEARING_PATH
+from policy import PID
 from mpc import CEM, RS
 from utils import make_output_dir
 
@@ -9,7 +10,7 @@ from utils import make_output_dir
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("name", help="The name of the experiment and output directory")
-    parser.add_argument("--policy", default="RS", choices=["RS", "CEM"])
+    parser.add_argument("--policy", default="RS", choices=["RS", "CEM", "PID"])
     parser.add_argument("--num_trials", type=int, default=100, help="The number of rollouts to conduct")
     parser.add_argument("--num_samples", type=int, default=1000, help="The number of samples in an RS run")
     parser.add_argument("--popsize", type=int, default=100, help="The population size for CEM")
@@ -21,6 +22,9 @@ def parse_arguments():
     parser.add_argument("--epsilon_cem", type=float, default=0.01, help="The epsilon for CEM")
     parser.add_argument("--env", default="full", choices=["full", "betan"])
     parser.add_argument("-ow", dest="overwrite", action="store_true")
+    parser.add_argument("-P", type=float, default=0.2, help="Proportional gain")
+    parser.add_argument("-I", type=float, default=0.0, help="Integral gain")
+    parser.add_argument("-D", type=float, default=0.0, help="Derivative gain")
     return parser.parse_args()
 
 
@@ -64,6 +68,13 @@ def main(args):
                      n_iters=args.num_iters,
                      alpha=args.alpha_cem,
                      epsilon=args.epsilon_cem)
+    elif args.policy == "PID":
+        policy = PID(env=env,
+                     P=args.P,
+                     I=args.I,
+                     D=args.D,
+                     tau=env.tau)
+
     episodes = []
     episode_path = output_dir / 'episodes.pk'
     for i in trange(args.num_trials):
