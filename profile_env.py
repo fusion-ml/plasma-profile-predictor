@@ -96,8 +96,8 @@ class ProfileEnv(Env):
         self.timestep = 200
         self.t_max = 2200
         self.i = 0
-        self.earliest_start_time = 500
-        self.latest_start_time = 1000
+        self.earliest_start_time = 1100
+        self.latest_start_time = 1600
         self.mu_0 = 1.256637E-6
         self.current_beta_n = None
         self.eps_denominator = 1e-4
