@@ -112,8 +112,11 @@ class ProfileEnv(Env):
         '''
 
     def reset(self):
+        beta_ns = []
         while True:
             example = self.val_generator[self.i][0]
+            db()
+            beta_n = self.compute_beta_n(example)
             time = self.val_generator.cur_times[0, self.time_lookback]
             if time > self.earliest_start_time and time < self.latest_start_time:
                 # TODO: arrange the data in state, return it
