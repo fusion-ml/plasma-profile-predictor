@@ -9,11 +9,10 @@ from tqdm import trange
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
 from stability.disrupt_predictor import load_cb_from_files
-from ipdb import set_trace as db
 
 
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
-SCENARIO_PATH = '/home/scratch/virajm/plasma_models/beta_n_signals_params.pkl'
+SCENARIO_PATH = '/home/scratch/virajm/plasma_models/beta_n_included_params.pkl'
 TEARING_PATH = Path('/home/scratch/virajm/plasma_models/tearing')
 
 
@@ -43,6 +42,7 @@ class ProfileEnv(Env):
         self.target_beta_n = 1.5
         self.bounds = {
                 'a_EFIT01': (-1.8, 1.95),
+                'betan_EFIT01': (-1.6, 1.6),
                 'bt': (-0.34, 5.9),
                 'curr': (-4.6, 1.4),
                 'curr_target': (-1.3, 1.6),
@@ -115,11 +115,8 @@ class ProfileEnv(Env):
         beta_ns = []
         while True:
             example = self.val_generator[self.i][0]
-            db()
-            beta_n = self.compute_beta_n(example)
             time = self.val_generator.cur_times[0, self.time_lookback]
             if time > self.earliest_start_time and time < self.latest_start_time:
-                # TODO: arrange the data in state, return it
                 self._state = example
                 self.t = 0
                 return self.obs
@@ -209,7 +206,7 @@ class ProfileEnv(Env):
         current = np.abs(state['input_curr'][..., -1] / 1e6)  # convert to MA from amps
         current = np.maximum(current, self.eps_denominator)  # use eps for numerical stability
         beta_n = beta * minor_radius * mean_total_field_strength / current
-        return beta_n
+        return beta_n * 100  # have to convert beta_n to a percent
 
     def compute_beta_n(self, obs):
         state = self.obs_to_state(obs)
