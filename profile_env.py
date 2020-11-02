@@ -9,6 +9,7 @@ from tqdm import trange
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
 from stability.disrupt_predictor import load_cb_from_files
+from ipdb import set_trace as db
 
 
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
@@ -407,7 +408,7 @@ def compute_tearing_stats():
         while not done:
             action = env.action_space.sample()
             next_state, reward, done, info = env.step(action)
-            tearing_inputs.append(info['tearing_input'])
+            tearing_inputs.append(info['tearing_prob'])
     tearing_inputs = np.concatenate(tearing_inputs, axis=0).reshape(-1, 10)
     max_tearing = tearing_inputs.max(axis=0)
     min_tearing = tearing_inputs.min(axis=0)
@@ -426,6 +427,7 @@ def compute_tearing_stats():
 if __name__ == '__main__':
     test_env()
     test_rollout()
+    print(f"completed non-tearing stuff")
     test_tearing_env()
     test_tearing_rollout()
     compute_tearing_stats()
