@@ -13,8 +13,9 @@ from ipdb import set_trace as db
 
 
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
-SCENARIO_PATH = '/home/scratch/virajm/plasma_models/beta_n_included_params.pkl'
-TEARING_PATH = Path('/home/scratch/virajm/plasma_models/tearing')
+SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/beta_n_included_params.pkl'
+TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
+VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
 
 
 class ProfileEnv(Env):
@@ -24,7 +25,7 @@ class ProfileEnv(Env):
         with open(scenario_path, 'rb') as f:
             self.scenario = pickle.load(f, encoding='latin1')
         self.scenario['process_data'] = False
-        with open(os.path.join(self.scenario['processed_filename_base'], 'val.pkl'), 'rb') as f:
+        with VAL_PATH.open('rb') as f:
             valdata = pickle.load(f)
         self.val_generator = DataGenerator(valdata,
                                            1,
@@ -401,7 +402,7 @@ def compute_tearing_stats():
     rew_coefs = (1, 1)
     env = TearingProfileEnv(scenario_path=SCENARIO_PATH, tearing_path=TEARING_PATH, rew_coefs=rew_coefs)
     tearing_inputs = []
-    n_eps = 1000
+    n_eps = 10
     for nep in trange(n_eps):
         env.reset()
         done = False
