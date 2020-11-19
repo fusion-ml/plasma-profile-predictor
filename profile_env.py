@@ -124,6 +124,7 @@ class ProfileEnv(Env):
                 self._state = example
                 self.t = 0
                 self.absolute_time = time
+                self.i += 1
                 return self.obs
             self.i += 1
             if self.i == len(self.val_generator):

@@ -23,7 +23,7 @@ def parse_arguments():
     parser.add_argument("--env", default="full", choices=["full", "betan"])
     parser.add_argument("-ow", dest="overwrite", action="store_true")
     parser.add_argument("-P", type=float, default=0.2, help="Proportional gain")
-    parser.add_argument("-I", type=float, default=0.0, help="Integral gain")
+    parser.add_argument("-I", type=float, default=0.5, help="Integral gain")
     parser.add_argument("-D", type=float, default=0.0, help="Derivative gain")
     parser.add_argument('--rl_model_path', help='Path to policy.')
     parser.add_argument('--cuda_device', default='')
