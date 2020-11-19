@@ -2,7 +2,7 @@ import argparse
 from tqdm import trange, tqdm
 import pickle
 from profile_env import ProfileEnv, TearingProfileEnv, SCENARIO_PATH, TEARING_PATH
-from policy import PID
+from policy import PID, PINJRLPolicy
 from mpc import CEM, RS
 from utils import make_output_dir
 
@@ -10,7 +10,7 @@ from utils import make_output_dir
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("name", help="The name of the experiment and output directory")
-    parser.add_argument("--policy", default="RS", choices=["RS", "CEM", "PID"])
+    parser.add_argument("--policy", default="RS", choices=["RS", "CEM", "PID", "RL"])
     parser.add_argument("--num_trials", type=int, default=100, help="The number of rollouts to conduct")
     parser.add_argument("--num_samples", type=int, default=1000, help="The number of samples in an RS run")
     parser.add_argument("--popsize", type=int, default=100, help="The population size for CEM")
@@ -25,6 +25,9 @@ def parse_arguments():
     parser.add_argument("-P", type=float, default=0.2, help="Proportional gain")
     parser.add_argument("-I", type=float, default=0.0, help="Integral gain")
     parser.add_argument("-D", type=float, default=0.0, help="Derivative gain")
+    parser.add_argument('--rl_model_path', help='Path to policy.')
+    parser.add_argument('--cuda_device', default='')
+    parser.add_argument('--pudb', action='store_true')
     return parser.parse_args()
 
 
@@ -38,6 +41,8 @@ def run_trial(policy, env):
     done = False
     while not done:
         action = policy(state)
+        if actions is None:
+            break
         state, reward, done, info = env.step(action)
         states.append(state)
         actions.append(action)
@@ -47,9 +52,7 @@ def run_trial(policy, env):
     tqdm.write(f"Total Reward: {sum(rewards)}")
     return states, actions, rewards, infos
 
-
-def main(args):
-    output_dir = make_output_dir(args.name, args.overwrite, args)
+def create_env(args):
     if args.env == "betan":
         env = ProfileEnv(scenario_path=SCENARIO_PATH)
     elif args.env == "full":
@@ -57,6 +60,13 @@ def main(args):
         env = TearingProfileEnv(scenario_path=SCENARIO_PATH,
                                 tearing_path=TEARING_PATH,
                                 rew_coefs=rew_coefs)
+    return env
+
+def main(args):
+    if args.pudb:
+        import pudb; pudb.set_trace()
+    output_dir = make_output_dir(args.name, args.overwrite, args)
+    env = create_env(args)
     if args.policy == "RS":
         policy = RS(env=env,
                     horizon=args.horizon,
@@ -75,7 +85,14 @@ def main(args):
                      I=args.I,
                      D=args.D,
                      tau=env.tau)
-
+    elif args.policy == 'RL':
+        policy = PINJRLPolicy(
+            model_path=args.rl_model_path,
+            env=env,
+            cuda_device=args.cuda_device,
+        )
+    else:
+        raise ValueError('Unknown policy: %s' % args.policy)
     episodes = []
     episode_path = output_dir / 'episodes.pk'
     for i in trange(args.num_trials):

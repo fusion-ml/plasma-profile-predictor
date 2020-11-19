@@ -8,6 +8,7 @@ from tqdm import trange
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
+from utils import get_historical_slice
 from stability.disrupt_predictor import load_cb_from_files
 from ipdb import set_trace as db
 
@@ -95,6 +96,7 @@ class ProfileEnv(Env):
         self._state = None
         self._state = None
         self.t = None
+        self.absolute_time = None
         self.timestep = 200  # ms
         self.tau = 0.2  # seconds
         self.t_max = 5000
@@ -114,13 +116,14 @@ class ProfileEnv(Env):
         '''
 
     def reset(self):
-        beta_ns = []
+        self.betans = []
         while True:
             example = self.val_generator[self.i][0]
             time = self.val_generator.cur_times[0, self.time_lookback]
             if time > self.earliest_start_time and time < self.latest_start_time:
                 self._state = example
                 self.t = 0
+                self.absolute_time = time
                 return self.obs
             self.i += 1
             if self.i == len(self.val_generator):
@@ -190,6 +193,7 @@ class ProfileEnv(Env):
         # self._state = dict(zip(self.target_profiles + self.target_scalars, output))
         reward = self.compute_reward(self._state)
         self.t += self.timestep
+        self.absolute_time += self.timestep
         done = self.t > self.t_max
         return self.obs, reward, done, {'beta_n': self.current_beta_n}
 
@@ -241,6 +245,7 @@ class ProfileEnv(Env):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         self.current_beta_n = self._compute_beta_n(denorm_state)
+        self.betans.append(float(self.current_beta_n))
         return -(self.current_beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
@@ -300,6 +305,7 @@ class TearingProfileEnv(ProfileEnv):
 
     def reset(self):
         state = super().reset()
+        self.tearabilities = []
         self.current_tearing_prob = None
         self.tearing_input = None
         super().compute_reward(self._state)
@@ -325,11 +331,13 @@ class TearingProfileEnv(ProfileEnv):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         old_beta_n = self.current_beta_n
         self.current_beta_n = self._compute_beta_n(denorm_state)
+        self.betans.append(float(self.current_beta_n))
         if old_beta_n.shape != self.current_beta_n.shape:
             old_beta_n = np.tile(old_beta_n[0], self.current_beta_n.shape)
         beta_n_reward = -(self.current_beta_n - self.target_beta_n) ** 2
         self.tearing_input = self.make_tearing_input(denorm_state, self.current_beta_n, old_beta_n)
         self.current_tearing_prob = self.tearing_model.multi_predict(self.tearing_input)
+        self.tearabilities.append(self.current_tearing_prob)
         exp_term = np.exp(self.rew_coefs[1] * (self.current_tearing_prob - 0.5))
         dis_loss = self.rew_coefs[0] * (exp_term / (1 + exp_term))
         return beta_n_reward - dis_loss
