@@ -98,6 +98,7 @@ class ProfileEnv(Env):
         self.timestep = 200  # ms
         self.tau = 0.2  # seconds
         self.t_max = 5000
+        self.flattop_dcurr_max = 10000 # A / ms
         self.i = 0
         self.earliest_start_time = 1100
         self.latest_start_time = 1600
@@ -118,11 +119,16 @@ class ProfileEnv(Env):
         while True:
             example = self.val_generator[self.i][0]
             time = self.val_generator.cur_times[0, self.time_lookback]
+            denorm_example = denormalize(example, self.normalization_dict, verbose=False)
+            curr = denorm_example['input_curr']
+            curr_derivative_approx = (curr[0, -1] - curr[0, 0]) / (len(curr) * 50)  # should be in A / ms
+            self.i += 1
+            if np.abs(curr_derivative_approx) > self.flattop_dcurr_max:
+                continue
             if time > self.earliest_start_time and time < self.latest_start_time:
                 self._state = example
                 self.t = 0
                 return self.obs
-            self.i += 1
             if self.i == len(self.val_generator):
                 print("Went through whole generator, restarting.")
                 self.i = 0
