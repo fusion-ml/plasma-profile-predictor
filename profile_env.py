@@ -9,6 +9,7 @@ from tqdm import trange
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
 from utils import get_historical_slice
+from nn_tearing_wrapper import NNTearingModel
 from stability.disrupt_predictor import load_cb_from_files
 from ipdb import set_trace as db
 
@@ -16,6 +17,7 @@ from ipdb import set_trace as db
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
 SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/beta_n_included_params.pkl'
 TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
+NN_TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/nn_tearing')
 VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
 
 
@@ -253,7 +255,7 @@ class ProfileEnv(Env):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         self.current_beta_n = self._compute_beta_n(denorm_state)
-        self.betans.append(float(self.current_beta_n))
+        self.betans.append(self.current_beta_n)
         return -(self.current_beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
@@ -286,7 +288,8 @@ class ProfileEnv(Env):
 
 
 class TearingProfileEnv(ProfileEnv):
-    def __init__(self, scenario_path, tearing_path, rew_coefs):
+    def __init__(self, scenario_path, tearing_path, rew_coefs,
+                 nn_tearing=False):
         super().__init__(scenario_path)
         self.tearing_path = tearing_path
         self.current_tearing_prob = None
@@ -304,11 +307,14 @@ class TearingProfileEnv(ProfileEnv):
         assert self.tearing_history_window % 50 == 0
         self.tearing_start_lookback = -1 - self.tearing_history_window // 50
         headers = [dat[1] for dat in self.tearing_headers] + ['efsbetan']
-        self.tearing_model = load_cb_from_files(
-                str(self.tearing_path / 'model.cbm'),
-                str(self.tearing_path / 'dranges.pkl'),
-                str(self.tearing_path / 'headers.pkl'),
-                headers)
+        if not nn_tearing:
+            self.tearing_model = load_cb_from_files(
+                    str(self.tearing_path / 'model.cbm'),
+                    str(self.tearing_path / 'dranges.pkl'),
+                    str(self.tearing_path / 'headers.pkl'),
+                    headers)
+        else:
+            self.tearing_model = NNTearingModel(tearing_path)
         self.tearing_input = None
 
     def reset(self):
@@ -339,7 +345,7 @@ class TearingProfileEnv(ProfileEnv):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         old_beta_n = self.current_beta_n
         self.current_beta_n = self._compute_beta_n(denorm_state)
-        self.betans.append(float(self.current_beta_n))
+        self.betans.append(self.current_beta_n)
         if old_beta_n.shape != self.current_beta_n.shape:
             old_beta_n = np.tile(old_beta_n[0], self.current_beta_n.shape)
         beta_n_reward = -(self.current_beta_n - self.target_beta_n) ** 2
@@ -414,6 +420,23 @@ def test_tearing_rollout():
     states = env.unroll(state, actions)
     return states
 
+def test_nn_tearing_rollout():
+    rew_coefs = (1, 1)
+    env = TearingProfileEnv(scenario_path=SCENARIO_PATH,
+            tearing_path=NN_TEARING_PATH, rew_coefs=rew_coefs, nn_tearing=True)
+    state = env.reset()
+    n_actions = 50
+    n_steps = 10
+    actions = []
+    for _ in range(n_actions):
+        traj_actions = []
+        for _ in range(n_steps):
+            traj_actions.append(env.action_space.sample())
+        actions.append(traj_actions)
+    actions = np.array(actions)
+    states = env.unroll(state, actions)
+    return states
+
 def compute_tearing_stats():
     rew_coefs = (1, 1)
     env = TearingProfileEnv(scenario_path=SCENARIO_PATH, tearing_path=TEARING_PATH, rew_coefs=rew_coefs)
@@ -447,4 +470,5 @@ if __name__ == '__main__':
     print(f"completed non-tearing stuff")
     test_tearing_env()
     test_tearing_rollout()
+    test_nn_tearing_rollout()
     compute_tearing_stats()
