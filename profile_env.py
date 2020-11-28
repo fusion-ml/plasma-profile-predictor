@@ -8,6 +8,8 @@ from tqdm import trange
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
+from utils import get_historical_slice
+from nn_tearing_wrapper import NNTearingModel
 from stability.disrupt_predictor import load_cb_from_files
 from ipdb import set_trace as db
 
@@ -15,7 +17,10 @@ from ipdb import set_trace as db
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
 SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/beta_n_included_params.pkl'
 TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
+NN_TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/nn_tearing')
 VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
+
+SHUFFLE_STARTS = False
 
 
 class ProfileEnv(Env):
@@ -27,6 +32,7 @@ class ProfileEnv(Env):
         self.scenario['process_data'] = False
         with VAL_PATH.open('rb') as f:
             valdata = pickle.load(f)
+        shuffle = SHUFFLE_STARTS and self.scenario['shuffle_generators']
         self.val_generator = DataGenerator(valdata,
                                            1,
                                            self.scenario['input_profile_names'],
@@ -38,7 +44,7 @@ class ProfileEnv(Env):
                                            self.scenario['lookahead'],
                                            self.scenario['predict_deltas'],
                                            self.scenario['profile_downsample'],
-                                           self.scenario['shuffle_generators'],
+                                           shuffle,
                                            sample_weights=self.scenario['sample_weighting'])
         self.time_lookback = self.scenario['lookbacks']['time']
         self.target_beta_n = 1.5
@@ -95,6 +101,7 @@ class ProfileEnv(Env):
         self._state = None
         self._state = None
         self.t = None
+        self.absolute_time = None
         self.timestep = 200  # ms
         self.tau = 0.2  # seconds
         self.t_max = 5000
@@ -115,7 +122,7 @@ class ProfileEnv(Env):
         '''
 
     def reset(self):
-        beta_ns = []
+        self.betans = []
         while True:
             example = self.val_generator[self.i][0]
             time = self.val_generator.cur_times[0, self.time_lookback]
@@ -128,6 +135,8 @@ class ProfileEnv(Env):
             if time > self.earliest_start_time and time < self.latest_start_time:
                 self._state = example
                 self.t = 0
+                self.absolute_time = time
+                self.i += 1
                 return self.obs
             if self.i == len(self.val_generator):
                 print("Went through whole generator, restarting.")
@@ -196,6 +205,7 @@ class ProfileEnv(Env):
         # self._state = dict(zip(self.target_profiles + self.target_scalars, output))
         reward = self.compute_reward(self._state)
         self.t += self.timestep
+        self.absolute_time += self.timestep
         done = self.t > self.t_max
         return self.obs, reward, done, {'beta_n': self.current_beta_n}
 
@@ -247,6 +257,7 @@ class ProfileEnv(Env):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         self.current_beta_n = self._compute_beta_n(denorm_state)
+        self.betans.append(self.current_beta_n)
         return -(self.current_beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
@@ -279,7 +290,8 @@ class ProfileEnv(Env):
 
 
 class TearingProfileEnv(ProfileEnv):
-    def __init__(self, scenario_path, tearing_path, rew_coefs):
+    def __init__(self, scenario_path, tearing_path, rew_coefs,
+                 nn_tearing=False):
         super().__init__(scenario_path)
         self.tearing_path = tearing_path
         self.current_tearing_prob = None
@@ -297,15 +309,19 @@ class TearingProfileEnv(ProfileEnv):
         assert self.tearing_history_window % 50 == 0
         self.tearing_start_lookback = -1 - self.tearing_history_window // 50
         headers = [dat[1] for dat in self.tearing_headers] + ['efsbetan']
-        self.tearing_model = load_cb_from_files(
-                str(self.tearing_path / 'model.cbm'),
-                str(self.tearing_path / 'dranges.pkl'),
-                str(self.tearing_path / 'headers.pkl'),
-                headers)
+        if not nn_tearing:
+            self.tearing_model = load_cb_from_files(
+                    str(self.tearing_path / 'model.cbm'),
+                    str(self.tearing_path / 'dranges.pkl'),
+                    str(self.tearing_path / 'headers.pkl'),
+                    headers)
+        else:
+            self.tearing_model = NNTearingModel(tearing_path)
         self.tearing_input = None
 
     def reset(self):
         state = super().reset()
+        self.tearabilities = []
         self.current_tearing_prob = None
         self.tearing_input = None
         super().compute_reward(self._state)
@@ -331,11 +347,13 @@ class TearingProfileEnv(ProfileEnv):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         old_beta_n = self.current_beta_n
         self.current_beta_n = self._compute_beta_n(denorm_state)
+        self.betans.append(self.current_beta_n)
         if old_beta_n.shape != self.current_beta_n.shape:
             old_beta_n = np.tile(old_beta_n[0], self.current_beta_n.shape)
         beta_n_reward = -(self.current_beta_n - self.target_beta_n) ** 2
         self.tearing_input = self.make_tearing_input(denorm_state, self.current_beta_n, old_beta_n)
         self.current_tearing_prob = self.tearing_model.multi_predict(self.tearing_input)
+        self.tearabilities.append(self.current_tearing_prob)
         exp_term = np.exp(self.rew_coefs[1] * (self.current_tearing_prob - 0.5))
         dis_loss = self.rew_coefs[0] * (exp_term / (1 + exp_term))
         return beta_n_reward - dis_loss
@@ -404,6 +422,23 @@ def test_tearing_rollout():
     states = env.unroll(state, actions)
     return states
 
+def test_nn_tearing_rollout():
+    rew_coefs = (1, 1)
+    env = TearingProfileEnv(scenario_path=SCENARIO_PATH,
+            tearing_path=NN_TEARING_PATH, rew_coefs=rew_coefs, nn_tearing=True)
+    state = env.reset()
+    n_actions = 50
+    n_steps = 10
+    actions = []
+    for _ in range(n_actions):
+        traj_actions = []
+        for _ in range(n_steps):
+            traj_actions.append(env.action_space.sample())
+        actions.append(traj_actions)
+    actions = np.array(actions)
+    states = env.unroll(state, actions)
+    return states
+
 def compute_tearing_stats():
     rew_coefs = (1, 1)
     env = TearingProfileEnv(scenario_path=SCENARIO_PATH, tearing_path=TEARING_PATH, rew_coefs=rew_coefs)
@@ -437,4 +472,5 @@ if __name__ == '__main__':
     print(f"completed non-tearing stuff")
     test_tearing_env()
     test_tearing_rollout()
+    test_nn_tearing_rollout()
     compute_tearing_stats()
