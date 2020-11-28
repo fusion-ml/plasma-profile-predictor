@@ -39,7 +39,8 @@ class ProfileEnv(Env):
                                            self.scenario['lookahead'],
                                            self.scenario['predict_deltas'],
                                            self.scenario['profile_downsample'],
-                                           self.scenario['shuffle_generators'],
+                                           False,
+                                           # self.scenario['shuffle_generators'],
                                            sample_weights=self.scenario['sample_weighting'])
         self.time_lookback = self.scenario['lookbacks']['time']
         self.target_beta_n = 1.5

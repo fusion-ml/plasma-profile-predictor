@@ -2,7 +2,7 @@ import argparse
 from tqdm import trange, tqdm
 import pickle
 from profile_env import ProfileEnv, TearingProfileEnv, SCENARIO_PATH, TEARING_PATH
-from policy import PID, PINJRLPolicy
+from policy import PIDPolicy, PINJRLPolicy
 from mpc import CEM, RS
 from utils import make_output_dir
 
@@ -80,7 +80,7 @@ def main(args):
                      alpha=args.alpha_cem,
                      epsilon=args.epsilon_cem)
     elif args.policy == "PID":
-        policy = PID(env=env,
+        policy = PIDPolicy(env=env,
                      P=args.P,
                      I=args.I,
                      D=args.D,
