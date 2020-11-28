@@ -316,7 +316,7 @@ class TearingProfileEnv(ProfileEnv):
                     str(self.tearing_path / 'headers.pkl'),
                     headers)
         else:
-            self.tearing_model = NNTearingModel(tearing_path)
+            self.tearing_model = NNTearingModel(tearing_path, headers)
         self.tearing_input = None
 
     def reset(self):
