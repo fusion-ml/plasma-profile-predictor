@@ -1,7 +1,8 @@
 import argparse
 from tqdm import trange, tqdm
 import pickle
-from profile_env import ProfileEnv, TearingProfileEnv, SCENARIO_PATH, TEARING_PATH
+from profile_env import ProfileEnv, TearingProfileEnv, SCENARIO_PATH,\
+        TEARING_PATH, NN_TEARING_PATH
 from policy import PIDPolicy, PINJRLPolicy
 from mpc import CEM, RS
 from utils import make_output_dir
@@ -26,6 +27,7 @@ def parse_arguments():
     parser.add_argument("-I", type=float, default=0.5, help="Integral gain")
     parser.add_argument("-D", type=float, default=0.0, help="Derivative gain")
     parser.add_argument('--rl_model_path', help='Path to policy.')
+    parser.add_argument('--use_nn_tearing', action='store_true')
     parser.add_argument('--cuda_device', default='')
     parser.add_argument('--pudb', action='store_true')
     return parser.parse_args()
@@ -57,9 +59,11 @@ def create_env(args):
         env = ProfileEnv(scenario_path=SCENARIO_PATH)
     elif args.env == "full":
         rew_coefs = (9, 10)
+        tpath = NN_TEARING_PATH if args.use_nn_tearing else TEARING_PATH
         env = TearingProfileEnv(scenario_path=SCENARIO_PATH,
-                                tearing_path=TEARING_PATH,
-                                rew_coefs=rew_coefs)
+                                tearing_path=tpath,
+                                rew_coefs=rew_coefs,
+                                nn_tearing=args.use_nn_tearing)
     return env
 
 def main(args):

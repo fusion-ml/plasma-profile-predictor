@@ -93,7 +93,7 @@ class PINJRLPolicy(Policy):
         # Get the beta_n values.
         time = self.env.absolute_time
         shotnum = self.env.val_generator.cur_shotnum[0, 0]
-        betas = self.env.betans[-3:]
+        betas = [float(b) for b in self.env.betans[-3:]]
         insertions = 0
         to_append = []
         while len(betas) + insertions < 3:

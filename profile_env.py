@@ -20,6 +20,8 @@ TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
 NN_TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/nn_tearing')
 VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
 
+SHUFFLE_STARTS = False
+
 
 class ProfileEnv(Env):
     def __init__(self, scenario_path):
@@ -30,6 +32,7 @@ class ProfileEnv(Env):
         self.scenario['process_data'] = False
         with VAL_PATH.open('rb') as f:
             valdata = pickle.load(f)
+        shuffle = SHUFFLE_STARTS and self.scenario['shuffle_generators']
         self.val_generator = DataGenerator(valdata,
                                            1,
                                            self.scenario['input_profile_names'],
@@ -41,8 +44,7 @@ class ProfileEnv(Env):
                                            self.scenario['lookahead'],
                                            self.scenario['predict_deltas'],
                                            self.scenario['profile_downsample'],
-                                           False,
-                                           # self.scenario['shuffle_generators'],
+                                           shuffle,
                                            sample_weights=self.scenario['sample_weighting'])
         self.time_lookback = self.scenario['lookbacks']['time']
         self.target_beta_n = 1.5
