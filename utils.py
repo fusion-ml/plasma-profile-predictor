@@ -50,6 +50,7 @@ def get_historical_slice(shotnum, time, valdata):
             data[key] = valdata[key][idx, 0, :]
         else:
             data[key] = valdata[key][idx, present_time_idx]
+            print(data[key].shape)
     return data
 
 if __name__ == '__main__':

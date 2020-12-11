@@ -1,6 +1,8 @@
 import gym
 # from gym.envs.mujoco import HalfCheetahEnv
 
+from profile_env import ProfileEnv, SCENARIO_PATH # TearingProfileEnv(nn_tearing=True)
+
 import rlkit.torch.pytorch_util as ptu
 from rlkit.data_management.env_replay_buffer import EnvReplayBuffer
 from rlkit.envs.wrappers import NormalizedBoxEnv
@@ -10,11 +12,24 @@ from rlkit.torch.sac.policies import TanhGaussianPolicy, MakeDeterministic
 from rlkit.torch.sac.sac import SACTrainer
 from rlkit.torch.networks import FlattenMlp
 from rlkit.torch.torch_rl_algorithm import TorchBatchRLAlgorithm
+from helpers.gym_http_client import ClientWrapperEnv
+import torch
+# torch.autograd.set_detect_anomaly(True)
+from ipdb import set_trace as db
 
 
 def experiment(variant):
-    expl_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
-    eval_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
+    # expl_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
+    # eval_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
+    remote_base = 'http://127.0.0.1:5000'
+    env_id = 'profile-env-v0'
+    remote = True
+    if remote:
+        expl_env = NormalizedBoxEnv(ClientWrapperEnv(remote_base, env_id))
+    else:
+        expl_env = NormalizedBoxEnv(ProfileEnv(scenario_path=SCENARIO_PATH, gpu_num=0))
+    # expl_env = NormalizedBoxEnv(env)
+    eval_env = expl_env
     # expl_env = NormalizedBoxEnv(HalfCheetahEnv())
     # eval_env = NormalizedBoxEnv(HalfCheetahEnv())
     obs_dim = expl_env.observation_space.low.size
@@ -50,10 +65,12 @@ def experiment(variant):
     eval_path_collector = MdpPathCollector(
         eval_env,
         eval_policy,
+        save_env=False,
     )
     expl_path_collector = MdpPathCollector(
         expl_env,
         policy,
+        save_env=False,
     )
     replay_buffer = EnvReplayBuffer(
         variant['replay_buffer_size'],
@@ -96,7 +113,7 @@ if __name__ == "__main__":
             num_trains_per_train_loop=1000,
             num_expl_steps_per_train_loop=1000,
             min_num_steps_before_training=1000,
-            max_path_length=1000,
+            max_path_length=50,
             batch_size=256,
         ),
         trainer_kwargs=dict(
@@ -109,6 +126,6 @@ if __name__ == "__main__":
             use_automatic_entropy_tuning=True,
         ),
     )
-    setup_logger('name-of-experiment', variant=variant)
-    # ptu.set_gpu_mode(True)  # optionally set the GPU (default=False)
+    setup_logger('test69', variant=variant)
+    ptu.set_gpu_mode(True, gpu_id=0)  # optionally set the GPU (default=False)
     experiment(variant)

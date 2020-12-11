@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 from pathlib import Path
 from tqdm import trange
+import tensorflow as tf
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
@@ -19,12 +20,13 @@ SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/beta_n_included_p
 TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
 NN_TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/nn_tearing')
 VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
+TRAIN_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/train.pkl')
 
 SHUFFLE_STARTS = False
 
 
 class ProfileEnv(Env):
-    def __init__(self, scenario_path):
+    def __init__(self, scenario_path, gpu_num=None):
         if not os.path.exists(scenario_path):
             raise ValueError(f"Scenario Path {scenario_path} does not exist!")
         with open(scenario_path, 'rb') as f:
@@ -32,7 +34,22 @@ class ProfileEnv(Env):
         self.scenario['process_data'] = False
         with VAL_PATH.open('rb') as f:
             valdata = pickle.load(f)
+        with TRAIN_PATH.open('rb') as f:
+            traindata = pickle.load(f)
         shuffle = SHUFFLE_STARTS and self.scenario['shuffle_generators']
+        self.train_generator = DataGenerator(traindata,
+                                           1,
+                                           self.scenario['input_profile_names'],
+                                           self.scenario['actuator_names'],
+                                           self.scenario['target_profile_names'],
+                                           self.scenario['scalar_input_names'],
+                                           self.scenario['target_scalar_names'],
+                                           self.scenario['lookbacks'],
+                                           self.scenario['lookahead'],
+                                           self.scenario['predict_deltas'],
+                                           self.scenario['profile_downsample'],
+                                           shuffle,
+                                           sample_weights=self.scenario['sample_weighting'])
         self.val_generator = DataGenerator(valdata,
                                            1,
                                            self.scenario['input_profile_names'],
@@ -97,7 +114,11 @@ class ProfileEnv(Env):
         model_path = scenario_path[:-11] + '.h5'
         if not os.path.exists(model_path):
             raise ValueError(f"Path {model_path} doesn't exist!")
-        self._model = keras.models.load_model(model_path, compile=False)
+        if gpu_num:
+            with tf.device(f"gpu:{gpu_num}"):
+                self._model = keras.models.load_model(model_path, compile=False)
+        else:
+            self._model = keras.models.load_model(model_path, compile=False)
         self._state = None
         self._state = None
         self.t = None
