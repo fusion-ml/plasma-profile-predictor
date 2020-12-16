@@ -151,18 +151,19 @@ class ClientWrapperEnv(gym.Env):
     '''
     def __init__(self, remote_base, env_id):
         self.client = Client(remote_base)
-        self.instance_id = client.env_create(env_id)
-        action_info = client.env_action_space_info(self.instance_id)
-        obs_info = client.env_observation_space_info(self.instance_id)
+        self.instance_id = self.client.env_create(env_id)
+        action_info = self.client.env_action_space_info(self.instance_id)
+        obs_info = self.client.env_observation_space_info(self.instance_id)
         self.action_space = self._process_space_info(action_info)
         self.observation_space = self._process_space_info(obs_info)
 
     def reset(self):
-        obs = client.env_reset(self.instance_id)
+        obs = self.client.env_reset(self.instance_id)
         return np.array(obs)
 
     def step(self, action):
-        obs, rew, done, info = client.env_step(self.instance_id, action)
+        list_action = action.tolist()
+        obs, rew, done, info = self.client.env_step(self.instance_id, list_action)
         return np.array(obs), rew, done, info
 
     def _process_space_info(self, info):

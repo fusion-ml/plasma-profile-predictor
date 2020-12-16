@@ -13,12 +13,13 @@ import sys
 sys.path.append('..')
 from profile_env import ProfileEnv, SCENARIO_PATH
 kwargs = dict(scenario_path=SCENARIO_PATH)
-register('profile-env-v0', kwargs=kwargs)
+register('profile-env-v0', entry_point="profile_env:ProfileEnv", kwargs=kwargs)
+register('scalar-env-v0', entry_point="profile_env:ScalarEnv", kwargs=kwargs)
 
 
 import logging
 logger = logging.getLogger('werkzeug')
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.INFO)
 
 ########## Container for environments ##########
 class Envs(object):
@@ -137,7 +138,7 @@ class Envs(object):
             v_c = lambda count: False
         else:
             v_c = lambda count: count % video_callable == 0
-        self.envs[instance_id] = gym.wrappers.Monitor(env, directory, force=force, resume=resume, video_callable=v_c) 
+        self.envs[instance_id] = gym.wrappers.Monitor(env, directory, force=force, resume=resume, video_callable=v_c)
 
     def monitor_close(self, instance_id):
         env = self._lookup_env(instance_id)
@@ -263,6 +264,12 @@ def env_step(instance_id):
     action = get_required_param(json, 'action')
     render = get_optional_param(json, 'render', False)
     [obs_jsonable, reward, done, info] = envs.step(instance_id, action, render)
+    reward = float(reward)
+    for k, v in info.items():
+        if isinstance(v, np.ndarray):
+            info[k] = v.tolist()
+            if len(info[k]) == 1:
+                info[k] = float(info[k][0])
     return jsonify(observation = obs_jsonable,
                     reward = reward, done = done, info = info)
 
@@ -281,6 +288,10 @@ def env_action_space_info(instance_id):
     space to space
     """
     info = envs.get_action_space_info(instance_id)
+    for k, v in info.items():
+        if type(v) is list:
+            for i in range(len(v)):
+                v[i] = float(v[i])
     return jsonify(info = info)
 
 @app.route('/v1/envs/<instance_id>/action_space/sample', methods=['GET'])
@@ -438,4 +449,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print('Server starting at: ' + 'http://{}:{}'.format(args.listen, args.port))
-    app.run(host=args.listen, port=args.port)
+    app.run(host=args.listen, port=args.port, threaded=False)

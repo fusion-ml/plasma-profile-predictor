@@ -489,6 +489,15 @@ def compute_tearing_stats():
 class ScalarEnv(ProfileEnv):
     def __init__(self, scenario_path, gpu_num=None):
         super().__init__(scenario_path, gpu_num)
+        obs_bot = []
+        obs_top = []
+        for sig in self.actuator_inputs + self.scalar_inputs:
+            obs_bot += [self.bounds[sig][0]] * (self.scenario['lookbacks'][sig] + 1)
+            obs_top += [self.bounds[sig][1]] * (self.scenario['lookbacks'][sig] + 1)
+        obs_bot = np.array(obs_bot)
+        obs_top = np.array(obs_top)
+
+        self.observation_space = spaces.Box(low=obs_bot, high=obs_top)
 
 
     @property
