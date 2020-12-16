@@ -386,6 +386,38 @@ class TearingProfileEnv(ProfileEnv):
         return next_state, reward, done, info
 
 
+
+class ScalarEnv(ProfileEnv):
+    def __init__(self, scenario_path, gpu_num=None):
+        super().__init__(scenario_path, gpu_num)
+        obs_bot = []
+        obs_top = []
+        for sig in self.actuator_inputs + self.scalar_inputs:
+            obs_bot += [self.bounds[sig][0]] * (self.scenario['lookbacks'][sig] + 1)
+            obs_top += [self.bounds[sig][1]] * (self.scenario['lookbacks'][sig] + 1)
+        obs_bot = np.array(obs_bot)
+        obs_top = np.array(obs_top)
+
+        self.observation_space = spaces.Box(low=obs_bot, high=obs_top)
+
+
+    @property
+    def obs(self):
+        state = [self._state['input_past_' + sig].flatten() for sig in self.actuator_inputs] + \
+                [self._state['input_' + sig].flatten() for sig in self.scalar_inputs]
+        # don't use future actuators because they are the action
+        # [self._state['input_future_' + sig] for sig in self.actuator_inputs] + \
+        return np.concatenate(state)
+
+
+class NonPhysicalProfileEnv(ProfileEnv):
+    def __init__(self, scenario_path, gpu_num=None):
+        super().__init__(scenario_path, gpu_num)
+
+    def _compute_beta_n(self, state):
+        db()
+
+
 def test_env():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
     env.reset()
@@ -486,27 +518,6 @@ def compute_tearing_stats():
     with open('tearing_inputs.pk', 'wb') as f:
         pickle.dump(tearing_data, f)
 
-class ScalarEnv(ProfileEnv):
-    def __init__(self, scenario_path, gpu_num=None):
-        super().__init__(scenario_path, gpu_num)
-        obs_bot = []
-        obs_top = []
-        for sig in self.actuator_inputs + self.scalar_inputs:
-            obs_bot += [self.bounds[sig][0]] * (self.scenario['lookbacks'][sig] + 1)
-            obs_top += [self.bounds[sig][1]] * (self.scenario['lookbacks'][sig] + 1)
-        obs_bot = np.array(obs_bot)
-        obs_top = np.array(obs_top)
-
-        self.observation_space = spaces.Box(low=obs_bot, high=obs_top)
-
-
-    @property
-    def obs(self):
-        state = [self._state['input_past_' + sig].flatten() for sig in self.actuator_inputs] + \
-                [self._state['input_' + sig].flatten() for sig in self.scalar_inputs]
-        # don't use future actuators because they are the action
-        # [self._state['input_future_' + sig] for sig in self.actuator_inputs] + \
-        return np.concatenate(state)
 
 if __name__ == '__main__':
     test_env()
