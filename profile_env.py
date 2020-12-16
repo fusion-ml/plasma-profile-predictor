@@ -486,6 +486,18 @@ def compute_tearing_stats():
     with open('tearing_inputs.pk', 'wb') as f:
         pickle.dump(tearing_data, f)
 
+class ScalarEnv(ProfileEnv):
+    def __init__(self, scenario_path, gpu_num=None):
+        super().__init__(scenario_path, gpu_num)
+
+
+    @property
+    def obs(self):
+        state = [self._state['input_past_' + sig].flatten() for sig in self.actuator_inputs] + \
+                [self._state['input_' + sig].flatten() for sig in self.scalar_inputs]
+        # don't use future actuators because they are the action
+        # [self._state['input_future_' + sig] for sig in self.actuator_inputs] + \
+        return np.concatenate(state)
 
 if __name__ == '__main__':
     test_env()
