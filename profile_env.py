@@ -132,6 +132,11 @@ class ProfileEnv(Env):
         self.latest_start_time = 1600
         self.mu_0 = 1.256637E-6
         self.current_beta_n = None
+        self.current_field_strength = None
+        self.current_plasma_pressure = None
+        self.current_beta = None
+        self.current_minor_radius = None
+        self.current_current = None
         self.eps_denominator = 1e-4
         '''
         self.validation_data = [inputs['input_' + sig] for sig in self.profile_inputs] + \
@@ -143,7 +148,12 @@ class ProfileEnv(Env):
         '''
 
     def reset(self):
-        self.betans = []
+        self.current_beta_n = None
+        self.current_field_strength = None
+        self.current_plasma_pressure = None
+        self.current_beta = None
+        self.current_minor_radius = None
+        self.current_current = None
         while True:
             example = self.val_generator[self.i][0]
             time = self.val_generator.cur_times[0, self.time_lookback]
@@ -228,7 +238,15 @@ class ProfileEnv(Env):
         self.t += self.timestep
         self.absolute_time += self.timestep
         done = self.t > self.t_max
-        return self.obs, reward, done, {'beta_n': self.current_beta_n}
+        info = {
+                'beta_n': self.current_beta_n,
+                'field_strength': self.current_field_strength,
+                'plasma_pressure': self.current_plasma_pressure,
+                'beta': self.current_beta,
+                'minor_radius': self.current_minor_radius,
+                'current': self.current_current
+               }
+        return self.obs, reward, done, info
 
     def _compute_beta_n(self, state):
         pressure_profile = state['input_press_EFIT01']  # Pa
@@ -237,13 +255,18 @@ class ProfileEnv(Env):
         # most of the magnetic field is composed of the
         # toroidal component. Also denoted in Tesla.
         mean_total_field_strength = np.maximum(mean_total_field_strength, self.eps_denominator)
+        self.current_field_strength = mean_total_field_strength
         mean_plasma_pressure = np.mean(pressure_profile, axis=-1)  # TODO: take the geometry of the torus into account
         mean_plasma_pressure = np.maximum(mean_plasma_pressure, 0)
+        self.current_plasma_pressure = mean_plasma_pressure
         beta = mean_plasma_pressure * 2 * self.mu_0 / mean_total_field_strength ** 2
+        self.current_beta = beta
         minor_radius = state['input_a_EFIT01'][..., -1]  # meters
         minor_radius = np.maximum(minor_radius, 0)
+        self.current_minor_radius = minor_radius
         current = np.abs(state['input_curr'][..., -1] / 1e6)  # convert to MA from amps
         current = np.maximum(current, self.eps_denominator)  # use eps for numerical stability
+        self.current_current = current
         beta_n = beta * minor_radius * mean_total_field_strength / current
         return beta_n * 100  # have to convert beta_n to a percent
 
@@ -278,7 +301,6 @@ class ProfileEnv(Env):
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         self.current_beta_n = self._compute_beta_n(denorm_state)
-        self.betans.append(self.current_beta_n)
         return -(self.current_beta_n - self.target_beta_n) ** 2
 
     def predict(self, states):
@@ -368,7 +390,6 @@ class TearingProfileEnv(ProfileEnv):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         old_beta_n = self.current_beta_n
         self.current_beta_n = self._compute_beta_n(denorm_state)
-        self.betans.append(self.current_beta_n)
         if old_beta_n.shape != self.current_beta_n.shape:
             old_beta_n = np.tile(old_beta_n[0], self.current_beta_n.shape)
         beta_n_reward = -(self.current_beta_n - self.target_beta_n) ** 2
@@ -410,13 +431,28 @@ class ScalarEnv(ProfileEnv):
         return np.concatenate(state)
 
 
+class NonPhysicalScalarEnv(ScalarEnv):
+    def __init__(self, scenario_path, gpu_num=None):
+        super().__init__(scenario_path, gpu_num)
+
+    def _compute_beta_n(self, state):
+        betan = state['input_betan_EFIT01'][0, 0]
+        return betan
+
+    def step(self, action):
+        obs, rew, done, wrong_info = super().step(action)
+        info = {'beta_n': wrong_info['beta_n']}
+        return obs, rew, done, info
+
+
+
 class NonPhysicalProfileEnv(ProfileEnv):
     def __init__(self, scenario_path, gpu_num=None):
         super().__init__(scenario_path, gpu_num)
 
     def _compute_beta_n(self, state):
-        db()
-
+        betan = state['input_betan_EFIT01'][0, 0]
+        return betan
 
 def test_env():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)

@@ -15,6 +15,8 @@ from profile_env import ProfileEnv, SCENARIO_PATH
 kwargs = dict(scenario_path=SCENARIO_PATH)
 register('profile-env-v0', entry_point="profile_env:ProfileEnv", kwargs=kwargs)
 register('scalar-env-v0', entry_point="profile_env:ScalarEnv", kwargs=kwargs)
+register('non-physical-env-v0', entry_point="profile_env:NonPhysicalProfileEnv", kwargs=kwargs)
+register('non-physical-scalar-env-v0', entry_point="profile_env:NonPhysicalScalarEnv", kwargs=kwargs)
 
 
 import logging

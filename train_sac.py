@@ -22,7 +22,7 @@ def experiment(variant):
     # expl_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
     # eval_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
     remote_base = 'http://127.0.0.1:5000'
-    env_id = 'profile-env-v0'
+    env_id = 'non-physical-scalar-env-v0'
     remote = True
     if remote:
         expl_env = NormalizedBoxEnv(ClientWrapperEnv(remote_base, env_id))
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     variant = dict(
         algorithm="SAC",
         version="normal",
-        layer_size=256,
+        layer_size=1024,
         replay_buffer_size=int(1E6),
         algorithm_kwargs=dict(
             num_epochs=3000,
@@ -126,6 +126,6 @@ if __name__ == "__main__":
             use_automatic_entropy_tuning=True,
         ),
     )
-    setup_logger('test69', variant=variant)
-    ptu.set_gpu_mode(True, gpu_id=0)  # optionally set the GPU (default=False)
+    setup_logger('scalar_nonphysical_sac', variant=variant)
+    ptu.set_gpu_mode(True)  # optionally set the GPU (default=False)
     experiment(variant)
