@@ -19,8 +19,8 @@ from ipdb import set_trace as db
 SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/test_abs_recent_params.pkl'
 TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
 NN_TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/nn_tearing')
-VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
-TRAIN_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/train.pkl')
+VAL_PATH = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
+TRAIN_PATH = Path('/zfsauton/project/public/virajm/plasma_models/train.pkl')
 
 SHUFFLE_STARTS = False
 
@@ -187,6 +187,9 @@ class ProfileEnv(Env):
                 [state['input_past_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.actuator_inputs] + \
                 [state['input_' + sig].reshape((-1, self.time_lookback + 1)) for sig in self.scalar_inputs]
         return np.concatenate(state, axis=1)
+
+    def get_value_from_denorm_state(self, denorm_state, name):
+        return denorm_state['input_' + name]
 
     def obs_to_state(self, obs):
         # obs is a vector, state is a dict
@@ -406,6 +409,27 @@ class TearingProfileEnv(ProfileEnv):
         new_info = {k: v for k, v in info.items() if v is not None}
         # info['tearing_input'] = self.tearing_input
         return next_state, reward, done, new_info
+
+
+class ProfileTargetEnv(ProfileEnv):
+    def __init__(self, scenario_path, gpu_num=None):
+        super().__init__(scenario_path, gpu_num)
+        target_profile_name = 'temp'
+        core_value = 3000
+        pedestal_value = 2000
+        edge_value = 0
+        pedestal_cutoff = 0.8
+        num_points = self.profile_length
+        core_values = np.linspace(core_value, pedestal_value, int(num_points * pedestal_cutoff))
+        edge_values = np.linspace(pedestal_value, edge_value, int(num_points * (1 - pedestal_cutoff) + 2))[1:]
+        self.target_profile = np.concatenate([core_value, edge_values])
+
+    def compute_reward(self, state):
+        denorm_state = denormalize(state, self.normalization_dict, verbose=False)
+        profile = self.get_value_from_denorm_state(denorm_state)
+        db()
+        return -(profile - self.target_profile).square().sum()
+
 
 
 

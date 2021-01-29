@@ -17,6 +17,7 @@ register('profile-env-v0', entry_point="profile_env:ProfileEnv", kwargs=kwargs)
 register('scalar-env-v0', entry_point="profile_env:ScalarEnv", kwargs=kwargs)
 register('non-physical-env-v0', entry_point="profile_env:NonPhysicalProfileEnv", kwargs=kwargs)
 register('non-physical-scalar-env-v0', entry_point="profile_env:NonPhysicalScalarEnv", kwargs=kwargs)
+register('profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=kwargs)
 kwargs['rew_coefs'] = (1, 1)
 kwargs['tearing_path'] = TEARING_PATH
 register('non-physical-tearing-env-v0', entry_point = "profile_env:NonPhysicalTearingProfileEnv", kwargs=kwargs)
