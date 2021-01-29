@@ -412,22 +412,23 @@ class TearingProfileEnv(ProfileEnv):
 
 
 class ProfileTargetEnv(ProfileEnv):
-    def __init__(self, scenario_path, gpu_num=None):
+    def __init__(self, scenario_path, gpu_num=None, **kwargs):
         super().__init__(scenario_path, gpu_num)
         target_profile_name = 'temp'
-        core_value = 3000
-        pedestal_value = 2000
+        # might have to divide these by 1000 if kev units here
+        core_value = 3200
+        pedestal_value = 800
         edge_value = 0
         pedestal_cutoff = 0.8
         num_points = self.profile_length
         core_values = np.linspace(core_value, pedestal_value, int(num_points * pedestal_cutoff))
         edge_values = np.linspace(pedestal_value, edge_value, int(num_points * (1 - pedestal_cutoff) + 2))[1:]
-        self.target_profile = np.concatenate([core_value, edge_values])
+        self.target_profile = np.concatenate([core_values, edge_values])
 
     def compute_reward(self, state):
+        db()
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         profile = self.get_value_from_denorm_state(denorm_state)
-        db()
         return -(profile - self.target_profile).square().sum()
 
 
@@ -457,7 +458,7 @@ class ScalarEnv(ProfileEnv):
 
 
 class NonPhysicalScalarEnv(ScalarEnv):
-    def __init__(self, scenario_path, gpu_num=None):
+    def __init__(self, scenario_path, gpu_num=None, **kwargs):
         super().__init__(scenario_path, gpu_num)
 
     def _compute_beta_n(self, state):
