@@ -16,7 +16,7 @@ from ipdb import set_trace as db
 
 
 # SCENARIO_PATH = "/zfsauton2/home/virajm/src/plasma-profile-predictor/outputs/beta_n_signals/model-conv2d_profiles-dens-temp-q_EFIT01-rotation-press_EFIT01_act-target_density-pinj-tinj-curr_target_30Jul20-16-13_params.pkl"  # NOQA
-SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/beta_n_included_params.pkl'
+SCENARIO_PATH = '/zfsauton/project/public/virajm/plasma_models/test_abs_recent_params.pkl'
 TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/tearing')
 NN_TEARING_PATH = Path('/zfsauton/project/public/ichar/FusionModels/nn_tearing')
 VAL_PATH  = Path('/zfsauton/project/public/virajm/plasma_models/val.pkl')
@@ -333,9 +333,9 @@ class ProfileEnv(Env):
 
 
 class TearingProfileEnv(ProfileEnv):
-    def __init__(self, scenario_path, tearing_path, rew_coefs,
+    def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None,
                  nn_tearing=False):
-        super().__init__(scenario_path)
+        super().__init__(scenario_path, gpu_num)
         self.tearing_path = tearing_path
         self.current_tearing_prob = None
         self.rew_coefs = rew_coefs
@@ -403,8 +403,9 @@ class TearingProfileEnv(ProfileEnv):
     def step(self, action):
         next_state, reward, done, info = super().step(action)
         info['tearing_prob'] = self.current_tearing_prob
+        new_info = {k: v for k, v in info.items() if v is not None}
         # info['tearing_input'] = self.tearing_input
-        return next_state, reward, done, info
+        return next_state, reward, done, new_info
 
 
 
@@ -453,6 +454,16 @@ class NonPhysicalProfileEnv(ProfileEnv):
     def _compute_beta_n(self, state):
         betan = state['input_betan_EFIT01'][0, 0]
         return betan
+
+
+class NonPhysicalTearingProfileEnv(TearingProfileEnv):
+    def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
+        super().__init__(scenario_path, tearing_path, rew_coefs, gpu_num)
+
+    def _compute_beta_n(self, state):
+        betan = state['input_betan_EFIT01'][0, 0]
+        return betan
+
 
 def test_env():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)

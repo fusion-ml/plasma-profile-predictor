@@ -11,12 +11,15 @@ import json
 from ipdb import set_trace as db
 import sys
 sys.path.append('..')
-from profile_env import ProfileEnv, SCENARIO_PATH
+from profile_env import ProfileEnv, SCENARIO_PATH, TEARING_PATH
 kwargs = dict(scenario_path=SCENARIO_PATH)
 register('profile-env-v0', entry_point="profile_env:ProfileEnv", kwargs=kwargs)
 register('scalar-env-v0', entry_point="profile_env:ScalarEnv", kwargs=kwargs)
 register('non-physical-env-v0', entry_point="profile_env:NonPhysicalProfileEnv", kwargs=kwargs)
 register('non-physical-scalar-env-v0', entry_point="profile_env:NonPhysicalScalarEnv", kwargs=kwargs)
+kwargs['rew_coefs'] = (1, 1)
+kwargs['tearing_path'] = TEARING_PATH
+register('non-physical-tearing-env-v0', entry_point = "profile_env:NonPhysicalTearingProfileEnv", kwargs=kwargs)
 
 
 import logging

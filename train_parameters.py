@@ -22,7 +22,7 @@ from keras import backend as K
 from ipdb import set_trace as db
 
 
-NAME = 'test'
+NAME = 'test_abs_recent_betan'
 
 def main(scenario_index=-2):
 
@@ -78,7 +78,7 @@ def main(scenario_index=-2):
                         'batch_size' : 128,
                         'epochs' : 300,
                         'flattop_only': True,
-                        'abs_magfield_current': False,
+                        'abs_magfield_current': True,
                         'predict_deltas' : True,
                         'raw_data_path':'/zfsauton2/home/virajm/data/profile_data/train_data_full.pkl',
 #                         'raw_data_path':'/scratch/gpfs/jabbate/old_stuff/new_data/final_data.pkl',
