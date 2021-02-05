@@ -162,8 +162,9 @@ class ClientWrapperEnv(gym.Env):
         return np.array(obs)
 
     def step(self, action):
-        list_action = action.tolist()
-        obs, rew, done, info = self.client.env_step(self.instance_id, list_action)
+        if type(action) is not int:
+            action = action.tolist()
+        obs, rew, done, info = self.client.env_step(self.instance_id, action)
         return np.array(obs), rew, done, info
 
     def _process_space_info(self, info):

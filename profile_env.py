@@ -437,13 +437,13 @@ class ProfileTargetEnv(ProfileEnv):
 
 
 class DiscreteProfileTargetEnv(ProfileTargetEnv):
-    def __init__(self, scenario_path, gpu_num=None):
+    def __init__(self, scenario_path, gpu_num=None, **kwargs):
         super().__init__(scenario_path, gpu_num)
         '''
         target_density, pinj, tinj, curr_target
         '''
         self.action_space = spaces.Discrete(3)
-        self.max_dPdt = 2
+        self.max_dPdt = 2000  # this is in kW/s
         self.constant_target_density = None
         self.constant_tinj = None
         self.constant_curr_target = None
@@ -453,17 +453,17 @@ class DiscreteProfileTargetEnv(ProfileTargetEnv):
 
     def reset(self):
         state = super().reset()
-        self.constant_target_density = self._state['input_future_target_density'][-1]
-        self.constant_tinj = self._state['tinj'][-1]
-        self.constant_curr_target = self._state['tinj'][-1]
-        self.power = self._state['tinj'][-1]
+        self.constant_target_density = self._state['input_future_target_density'][0, -1]
+        self.constant_tinj = self._state['input_future_tinj'][0, -1]
+        self.constant_curr_target = self._state['input_future_curr_target'][0, -1]
+        self.power = self._state['input_future_pinj'][0, -1]
         return state
 
     def step(self, action):
         pinj = self.power + (action - 1) * self.power_increment
         full_action = np.array([self.constant_curr_target, pinj, self.constant_tinj, self.constant_curr_target])
         self.power = pinj
-        super().step(full_action)
+        return super().step(full_action)
 
 
 class ScalarEnv(ProfileEnv):
@@ -538,6 +538,16 @@ def test_env():
         if done:
             break
 
+def test_discrete_env():
+    env = DiscreteProfileTargetEnv(scenario_path=SCENARIO_PATH)
+    env.reset()
+    rewards = []
+    while True:
+        action = env.action_space.sample()
+        next_state, reward, done, info = env.step(action)
+        rewards.append(reward)
+        if done:
+            break
 
 def test_rollout():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
@@ -629,6 +639,7 @@ def compute_tearing_stats():
 
 
 if __name__ == '__main__':
+    test_discrete_env()
     test_env()
     test_rollout()
     print(f"completed non-tearing stuff")
