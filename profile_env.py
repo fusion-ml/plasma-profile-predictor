@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
-from utils import get_historical_slice
+# from utils import get_historical_slice
 from nn_tearing_wrapper import NNTearingModel
 from stability.disrupt_predictor import load_cb_from_files
 from ipdb import set_trace as db
@@ -38,18 +38,18 @@ class ProfileEnv(Env):
             traindata = pickle.load(f)
         shuffle = SHUFFLE_STARTS and self.scenario['shuffle_generators']
         self.train_generator = DataGenerator(traindata,
-                                           1,
-                                           self.scenario['input_profile_names'],
-                                           self.scenario['actuator_names'],
-                                           self.scenario['target_profile_names'],
-                                           self.scenario['scalar_input_names'],
-                                           self.scenario['target_scalar_names'],
-                                           self.scenario['lookbacks'],
-                                           self.scenario['lookahead'],
-                                           self.scenario['predict_deltas'],
-                                           self.scenario['profile_downsample'],
-                                           shuffle,
-                                           sample_weights=self.scenario['sample_weighting'])
+                                             1,
+                                             self.scenario['input_profile_names'],
+                                             self.scenario['actuator_names'],
+                                             self.scenario['target_profile_names'],
+                                             self.scenario['scalar_input_names'],
+                                             self.scenario['target_scalar_names'],
+                                             self.scenario['lookbacks'],
+                                             self.scenario['lookahead'],
+                                             self.scenario['predict_deltas'],
+                                             self.scenario['profile_downsample'],
+                                             shuffle,
+                                             sample_weights=self.scenario['sample_weighting'])
         self.val_generator = DataGenerator(valdata,
                                            1,
                                            self.scenario['input_profile_names'],
@@ -126,7 +126,7 @@ class ProfileEnv(Env):
         self.timestep = 200  # ms
         self.tau = 0.2  # seconds
         self.t_max = 5000
-        self.flattop_dcurr_max = 10000 # A / ms
+        self.flattop_dcurr_max = 10000  # A / ms
         self.i = 0
         self.earliest_start_time = 1100
         self.latest_start_time = 1600
@@ -412,23 +412,29 @@ class TearingProfileEnv(ProfileEnv):
 
 
 class ProfileTargetEnv(ProfileEnv):
-    def __init__(self, scenario_path, gpu_num=None):
+    def __init__(self, scenario_path, gpu_num=None, **kwargs):
         super().__init__(scenario_path, gpu_num)
-        target_profile_name = 'temp'
-        core_value = 3000
-        pedestal_value = 2000
+        self.target_profile_name = 'temp'
+        # these temperatures are in KeV
+        core_value = 3.2
+        pedestal_value = 0.8
         edge_value = 0
         pedestal_cutoff = 0.8
         num_points = self.profile_length
         core_values = np.linspace(core_value, pedestal_value, int(num_points * pedestal_cutoff))
         edge_values = np.linspace(pedestal_value, edge_value, int(num_points * (1 - pedestal_cutoff) + 2))[1:]
-        self.target_profile = np.concatenate([core_value, edge_values])
+        self.target_profile = np.concatenate([core_values, edge_values])
 
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
-        profile = self.get_value_from_denorm_state(denorm_state)
-        db()
-        return -(profile - self.target_profile).square().sum()
+        profile = self.get_value_from_denorm_state(denorm_state, self.target_profile_name).flatten()
+        return -np.sum(np.square(profile - self.target_profile))
+
+    def step(self, action):
+        obs, rew, done, wrong_info = super().step(action)
+        # info = {'beta_n': wrong_info['beta_n']}
+        return obs, rew, done, {}
+
 
 class DiscreteProfileTargetEnv(ProfileTargetEnv):
     def __init__(self, scenario_path, gpu_num=None):
@@ -484,7 +490,7 @@ class ScalarEnv(ProfileEnv):
 
 
 class NonPhysicalScalarEnv(ScalarEnv):
-    def __init__(self, scenario_path, gpu_num=None):
+    def __init__(self, scenario_path, gpu_num=None, **kwargs):
         super().__init__(scenario_path, gpu_num)
 
     def _compute_beta_n(self, state):
@@ -505,6 +511,11 @@ class NonPhysicalProfileEnv(ProfileEnv):
     def _compute_beta_n(self, state):
         betan = state['input_betan_EFIT01'][0, 0]
         return betan
+
+    def step(self, action):
+        obs, rew, done, wrong_info = super().step(action)
+        info = {'beta_n': wrong_info['beta_n']}
+        return obs, rew, done, info
 
 
 class NonPhysicalTearingProfileEnv(TearingProfileEnv):

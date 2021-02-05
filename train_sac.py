@@ -22,7 +22,7 @@ def experiment(variant):
     # expl_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
     # eval_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
     remote_base = 'http://127.0.0.1:5000'
-    env_id = 'non-physical-tearing-env-v0'
+    env_id = 'profile-target-env-v0'
     remote = True
     if remote:
         expl_env = NormalizedBoxEnv(ClientWrapperEnv(remote_base, env_id))
@@ -126,6 +126,6 @@ if __name__ == "__main__":
             use_automatic_entropy_tuning=True,
         ),
     )
-    setup_logger('tearing_nonphys_sac', variant=variant)
+    setup_logger('profile_targeting_sac', variant=variant)
     ptu.set_gpu_mode(True)  # optionally set the GPU (default=False)
     experiment(variant)
