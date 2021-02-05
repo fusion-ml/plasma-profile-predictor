@@ -6,7 +6,6 @@ from gym.envs.registration import register
 import numpy as np
 import six
 import argparse
-import sys
 import json
 from ipdb import set_trace as db
 import sys
@@ -20,7 +19,9 @@ register('non-physical-scalar-env-v0', entry_point="profile_env:NonPhysicalScala
 register('profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=kwargs)
 kwargs['rew_coefs'] = (1, 1)
 kwargs['tearing_path'] = TEARING_PATH
-register('non-physical-tearing-env-v0', entry_point = "profile_env:NonPhysicalTearingProfileEnv", kwargs=kwargs)
+register('non-physical-tearing-env-v0', entry_point="profile_env:NonPhysicalTearingProfileEnv", kwargs=kwargs)
+register('profile-only-tearing-v0', entry_point="profile_env:NonPhysicalTearingProfileOnlyEnv", kwargs=kwargs)
+register('scalar-only-tearing-v0', entry_point="profile_env:NonPhysicalScalarTearingEnv", kwargs=kwargs)
 
 
 import logging

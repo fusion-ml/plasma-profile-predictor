@@ -278,7 +278,6 @@ class ProfileEnv(Env):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         return self._compute_beta_n(denorm_state)
 
-
     def unroll(self, obs, action_sequence):
         """
         obs: batch_size * obs_dim (ndarray)
@@ -525,6 +524,41 @@ class NonPhysicalTearingProfileEnv(TearingProfileEnv):
     def _compute_beta_n(self, state):
         betan = state['input_betan_EFIT01'][0, 0]
         return betan
+
+class NonPhysicalScalarTearingEnv(NonPhysicalTearingProfileEnv):
+    def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
+        super().__init__(scenario_path, tearing_path, rew_coefs, gpu_num)
+        self.state_start = self.profile_length * len(self.profile_inputs)
+        low = self.observation_space.low[self.state_start:]
+        high = self.observation_space.high[self.state_start:]
+        self.observation_space = spaces.Box(low=low, high=high)
+
+    def reset(self):
+        obs = super().reset()
+        return obs[self.state_start:]
+
+
+    def step(self, action):
+        obs = super().step(action)
+        return obs[self.state_start:]
+
+class NonPhysicalTearingProfileOnlyEnv(NonPhysicalTearingProfileEnv):
+    def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
+        super().__init__(scenario_path, tearing_path, rew_coefs, gpu_num)
+        self.state_end = self.profile_length * len(self.profile_inputs) + (self.time_lookback + 1) * len(self.actuator_inputs)
+        low = self.observation_space.low[:self.state_end]
+        high = self.observation_space.high[:self.state_end]
+        self.observation_space = spaces.Box(low=low, high=high)
+
+    def reset(self):
+        obs = super().reset()
+        return obs[:self.state_end]
+
+
+    def step(self, action):
+        obs = super().step(action)
+        return obs[:self.state_end]
+
 
 
 def test_env():
