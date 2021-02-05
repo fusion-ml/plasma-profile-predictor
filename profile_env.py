@@ -50,7 +50,7 @@ class ProfileEnv(Env):
                                            self.scenario['profile_downsample'],
                                            shuffle,
                                            sample_weights=self.scenario['sample_weighting'])
-        self.val_generator = DataGenerator(valdata,
+        self.val_generator = DataGe(valdata,
                                            1,
                                            self.scenario['input_profile_names'],
                                            self.scenario['actuator_names'],
@@ -414,10 +414,10 @@ class TearingProfileEnv(ProfileEnv):
 class ProfileTargetEnv(ProfileEnv):
     def __init__(self, scenario_path, gpu_num=None, **kwargs):
         super().__init__(scenario_path, gpu_num)
-        target_profile_name = 'temp'
-        # might have to divide these by 1000 if kev units here
-        core_value = 3200
-        pedestal_value = 800
+        self.target_profile_name = 'temp'
+        # these temperatures are in KeV
+        core_value = 3.2
+        pedestal_value = 0.8
         edge_value = 0
         pedestal_cutoff = 0.8
         num_points = self.profile_length
@@ -426,12 +426,15 @@ class ProfileTargetEnv(ProfileEnv):
         self.target_profile = np.concatenate([core_values, edge_values])
 
     def compute_reward(self, state):
-        db()
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
-        profile = self.get_value_from_denorm_state(denorm_state)
-        return -(profile - self.target_profile).square().sum()
+        profile = self.get_value_from_denorm_state(denorm_state, self.target_profile_name).flatten()
+        return -np.sum(np.square(profile - self.target_profile))
 
 
+    def step(self, action):
+        obs, rew, done, wrong_info = super().step(action)
+        # info = {'beta_n': wrong_info['beta_n']}
+        return obs, rew, done, {}
 
 
 class ScalarEnv(ProfileEnv):
@@ -479,6 +482,11 @@ class NonPhysicalProfileEnv(ProfileEnv):
     def _compute_beta_n(self, state):
         betan = state['input_betan_EFIT01'][0, 0]
         return betan
+
+    def step(self, action):
+        obs, rew, done, wrong_info = super().step(action)
+        info = {'beta_n': wrong_info['beta_n']}
+        return obs, rew, done, info
 
 
 class NonPhysicalTearingProfileEnv(TearingProfileEnv):
