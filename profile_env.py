@@ -430,7 +430,34 @@ class ProfileTargetEnv(ProfileEnv):
         db()
         return -(profile - self.target_profile).square().sum()
 
+class DiscreteProfileTargetEnv(ProfileTargetEnv):
+    def __init__(self, scenario_path, gpu_num=None):
+        super().__init__(scenario_path, gpu_num)
+        '''
+        target_density, pinj, tinj, curr_target
+        '''
+        self.action_space = spaces.Discrete(3)
+        self.max_dPdt = 2
+        self.constant_target_density = None
+        self.constant_tinj = None
+        self.constant_curr_target = None
+        self.power = None
+        self.power_iqr = self.normalization_dict['pinj']['iqr']
+        self.power_increment = self.max_dPdt / self.power_iqr
 
+    def reset(self):
+        state = super().reset()
+        self.constant_target_density = self._state['input_future_target_density'][-1]
+        self.constant_tinj = self._state['tinj'][-1]
+        self.constant_curr_target = self._state['tinj'][-1]
+        self.power = self._state['tinj'][-1]
+        return state
+
+    def step(self, action):
+        pinj = self.power + (action - 1) * self.power_increment
+        full_action = np.array([self.constant_curr_target, pinj, self.constant_tinj, self.constant_curr_target])
+        self.power = pinj
+        super().step(full_action)
 
 
 class ScalarEnv(ProfileEnv):
