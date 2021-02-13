@@ -461,6 +461,7 @@ class DiscreteProfileTargetEnv(ProfileTargetEnv):
 
     def step(self, action):
         pinj = self.power + (action - 1) * self.power_increment
+        pinj = np.clip(pinj, self.bounds['pinj'][0], self.bounds['pinj'][1])
         full_action = np.array([self.constant_curr_target, pinj, self.constant_tinj, self.constant_curr_target])
         self.power = pinj
         return super().step(full_action)
