@@ -9,7 +9,7 @@ import tensorflow as tf
 from scipy import signal
 
 from helpers.data_generator import DataGenerator
-from helpers.normalization import denormalize
+from helpers.normalization import denormalize, renormalize
 # from utils import get_historical_slice
 from nn_tearing_wrapper import NNTearingModel
 from stability.disrupt_predictor import load_cb_from_files
@@ -424,18 +424,26 @@ class TearingProfileEnv(ProfileEnv):
 
 
 class ProfileTargetEnv(ProfileEnv):
-    def __init__(self, scenario_path, gpu_num=None, smooth_profiles=False, **kwargs):
+    def __init__(self,
+                 scenario_path,
+                 gpu_num=None,
+                 smooth_profiles=False,
+                 target_profile_name='temp',
+                 core_value=3.2,
+                 pedestal_value=0.8,
+                 edge_value=0.,
+                 **kwargs):
         super().__init__(scenario_path, gpu_num, smooth_profiles)
-        self.target_profile_name = 'temp'
+        self.target_profile_name = target_profile_name
         # these temperatures are in KeV
-        core_value = 3.2
-        pedestal_value = 0.8
-        edge_value = 0
         pedestal_cutoff = 0.8
+        self.target_profile = self.make_simple_target_profile(core_value, pedestal_value, edge_value, pedestal_cutoff)
+
+    def make_simple_target_profile(self, core_value, pedestal_value, edge_value, pedestal_cutoff):
         num_points = self.profile_length
         core_values = np.linspace(core_value, pedestal_value, int(num_points * pedestal_cutoff))
         edge_values = np.linspace(pedestal_value, edge_value, int(num_points * (1 - pedestal_cutoff) + 2))[1:]
-        self.target_profile = np.concatenate([core_values, edge_values])
+        return np.concatenate([core_values, edge_values])
 
     def compute_reward(self, state):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
@@ -446,6 +454,40 @@ class ProfileTargetEnv(ProfileEnv):
         obs, rew, done, wrong_info = super().step(action)
         # info = {'beta_n': wrong_info['beta_n']}
         return obs, rew, done, {}
+
+
+class MGProfileTargetEnv(ProfileTargetEnv):
+    def __init__(self, scenario_path, gpu_num=None, smooth_profiles=False, **kwargs):
+        super().__init__(scenario_path, gpu_num, smooth_profiles)
+        self.core_temp_range = (2.4, 4)
+        self.ped_pct_range = (0.2, 0.7)
+        self.pedestal_cutoff_range(0.7, 0.85)
+        db()
+        low_target = np.concatenate([self.bounds[self.target_profile_name][0]] * self.profile_length)
+        high_target = np.concatenate([self.bounds[self.target_profile_name][1]] * self.profile_length)
+        low = np.concatenate([self.observation_space.low, low_target])
+        high = np.concatenate([self.observation_space.high, high_target])
+        self.observation_space = spaces.Box(low=low, high=high)
+
+    def reset(self):
+        db()
+        obs = super().reset()
+        core_temp = np.random.uniform(*self.core_temp_range)
+        ped_temp = core_temp * np.random.uniform(*self.ped_pct_range)
+        ped_cutoff = np.random.uniform(*self.pedestal_cutoff_range)
+        self.target_profile = self.make_simple_target_profile(core_temp, ped_temp, 0., ped_cutoff)
+        self.normalized_target_profile = renormalize({self.target_profile_name: self.target_profile},
+                                                      self.normalization_dict, verbose=False)
+        return self.augment_obs(obs)
+
+    def step(self, action):
+        db()
+        obs, rew, done, info = super().step(action)
+        augmented_obs = self.augment_obs(obs)
+        return augmented_obs, rew, done, info
+
+    def augment_obs(obs, self):
+        return np.concatenate([obs, self.normalized_target_profile])
 
 
 class DiscreteProfileTargetEnv(ProfileTargetEnv):
@@ -492,7 +534,6 @@ class ScalarEnv(ProfileEnv):
 
         self.observation_space = spaces.Box(low=obs_bot, high=obs_top)
 
-
     @property
     def obs(self):
         state = [self._state['input_past_' + sig].flatten() for sig in self.actuator_inputs] + \
@@ -514,7 +555,6 @@ class NonPhysicalScalarEnv(ScalarEnv):
         obs, rew, done, wrong_info = super().step(action)
         info = {'beta_n': wrong_info['beta_n']}
         return obs, rew, done, info
-
 
 
 class NonPhysicalProfileEnv(ProfileEnv):
@@ -539,6 +579,7 @@ class NonPhysicalTearingProfileEnv(TearingProfileEnv):
         betan = state['input_betan_EFIT01'][0, 0]
         return betan
 
+
 class NonPhysicalScalarTearingEnv(NonPhysicalTearingProfileEnv):
     def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
         super().__init__(scenario_path, tearing_path, rew_coefs, gpu_num)
@@ -551,10 +592,10 @@ class NonPhysicalScalarTearingEnv(NonPhysicalTearingProfileEnv):
         obs = super().reset()
         return obs[self.state_start:]
 
-
     def step(self, action):
         obs = super().step(action)
         return obs[self.state_start:]
+
 
 class NonPhysicalTearingProfileOnlyEnv(NonPhysicalTearingProfileEnv):
     def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
@@ -572,7 +613,6 @@ class NonPhysicalTearingProfileOnlyEnv(NonPhysicalTearingProfileEnv):
     def step(self, action):
         obs = super().step(action)
         return obs[:self.state_end]
-
 
 
 def test_env():
