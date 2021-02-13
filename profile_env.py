@@ -6,6 +6,7 @@ import numpy as np
 from pathlib import Path
 from tqdm import trange
 import tensorflow as tf
+from scipy import signal
 
 from helpers.data_generator import DataGenerator
 from helpers.normalization import denormalize
@@ -25,13 +26,22 @@ TRAIN_PATH = Path('/zfsauton/project/public/virajm/plasma_models/train.pkl')
 SHUFFLE_STARTS = False
 
 
+def smooth_profile(profile, order=3, freq_cutoff=0.3):
+    # low pass butterworth filter for smoothing
+    sos = signal.butter(order, freq_cutoff, output='sos')
+    filtered = signal.sosfilt(sos, profile[::-1])[::-1]
+    output = np.concatenate([filtered[:-order], profile[-order:]])
+    return output
+
+
 class ProfileEnv(Env):
-    def __init__(self, scenario_path, gpu_num=None):
+    def __init__(self, scenario_path, gpu_num=None, smooth_profiles=False, **kwargs):
         if not os.path.exists(scenario_path):
             raise ValueError(f"Scenario Path {scenario_path} does not exist!")
         with open(scenario_path, 'rb') as f:
             self.scenario = pickle.load(f, encoding='latin1')
         self.scenario['process_data'] = False
+        self.smooth_profiles = smooth_profiles
         with VAL_PATH.open('rb') as f:
             valdata = pickle.load(f)
         with TRAIN_PATH.open('rb') as f:
@@ -214,7 +224,10 @@ class ProfileEnv(Env):
         new_state = {}
         for i, prof in enumerate(self.target_profiles):
             baseline = states['input_' + prof][:, 0, :]
-            new_state['input_' + prof] = baseline + output[i]
+            profile = baseline + output[i]
+            if self.smooth_profiles:
+                profile = smooth_profile(profile)
+            new_state['input_' + prof] = profile
 
         for act in self.actuator_inputs:
             new_state['input_past_' + act] = np.concatenate((states['input_past_' + act][:, -3:],
@@ -278,7 +291,6 @@ class ProfileEnv(Env):
         denorm_state = denormalize(state, self.normalization_dict, verbose=False)
         return self._compute_beta_n(denorm_state)
 
-
     def unroll(self, obs, action_sequence):
         """
         obs: batch_size * obs_dim (ndarray)
@@ -293,8 +305,8 @@ class ProfileEnv(Env):
         for i in range(n_timesteps):
             action = action_sequence[:, i, :]
             model_input = self.make_states(state, action)
-            obs = self.predict(model_input)
-            state = self.output_to_state(model_input, action, obs)
+            output = self.predict(model_input)
+            state = self.output_to_state(model_input, action, output)
             rewards = self.compute_reward(state)
             obs_sequence.append(self.state_to_obs(state))
             rew_sequence.append(rewards)
@@ -412,8 +424,8 @@ class TearingProfileEnv(ProfileEnv):
 
 
 class ProfileTargetEnv(ProfileEnv):
-    def __init__(self, scenario_path, gpu_num=None, **kwargs):
-        super().__init__(scenario_path, gpu_num)
+    def __init__(self, scenario_path, gpu_num=None, smooth_profiles=False, **kwargs):
+        super().__init__(scenario_path, gpu_num, smooth_profiles)
         self.target_profile_name = 'temp'
         # these temperatures are in KeV
         core_value = 3.2
@@ -526,6 +538,41 @@ class NonPhysicalTearingProfileEnv(TearingProfileEnv):
     def _compute_beta_n(self, state):
         betan = state['input_betan_EFIT01'][0, 0]
         return betan
+
+class NonPhysicalScalarTearingEnv(NonPhysicalTearingProfileEnv):
+    def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
+        super().__init__(scenario_path, tearing_path, rew_coefs, gpu_num)
+        self.state_start = self.profile_length * len(self.profile_inputs)
+        low = self.observation_space.low[self.state_start:]
+        high = self.observation_space.high[self.state_start:]
+        self.observation_space = spaces.Box(low=low, high=high)
+
+    def reset(self):
+        obs = super().reset()
+        return obs[self.state_start:]
+
+
+    def step(self, action):
+        obs = super().step(action)
+        return obs[self.state_start:]
+
+class NonPhysicalTearingProfileOnlyEnv(NonPhysicalTearingProfileEnv):
+    def __init__(self, scenario_path, tearing_path, rew_coefs, gpu_num=None):
+        super().__init__(scenario_path, tearing_path, rew_coefs, gpu_num)
+        self.state_end = self.profile_length * len(self.profile_inputs) + (self.time_lookback + 1) * len(self.actuator_inputs)
+        low = self.observation_space.low[:self.state_end]
+        high = self.observation_space.high[:self.state_end]
+        self.observation_space = spaces.Box(low=low, high=high)
+
+    def reset(self):
+        obs = super().reset()
+        return obs[:self.state_end]
+
+
+    def step(self, action):
+        obs = super().step(action)
+        return obs[:self.state_end]
+
 
 
 def test_env():
