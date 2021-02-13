@@ -12,14 +12,27 @@ from ipdb import set_trace as db
 
 filename = 'paths.pkl'
 
+class FakeAgent:
+    def __init__(self):
+        pass
+        self.action = 2
+
+    def reset(self):
+        pass
+
+    def get_action(self, obs):
+        return self.action, {}
+
 
 def simulate_policy(args):
     data = torch.load(args.file, map_location=torch.device('cpu'))
     policy = data['evaluation/policy']
+    # policy = FakeAgent()
     # env = data['evaluation/env']
-    remote_base = 'http://127.0.0.1:5000'
+    remote_base = 'http://127.0.0.1:5001'
     env_id = 'profile-target-env-v0'
     env = NormalizedBoxEnv(ClientWrapperEnv(remote_base, env_id))
+    # env = ClientWrapperEnv(remote_base, env_id)
 
 
     print("Policy loaded")
@@ -36,7 +49,6 @@ def simulate_policy(args):
         )
         if hasattr(env, "log_diagnostics"):
             env.log_diagnostics([path])
-        db()
         logger.dump_tabular()
         paths.append(path)
     with open(filename, 'wb') as f:
