@@ -30,7 +30,7 @@ def simulate_policy(args):
     # policy = FakeAgent()
     # env = data['evaluation/env']
     remote_base = 'http://127.0.0.1:5001'
-    env_id = 'profile-target-env-v0'
+    env_id = 'mg-smooth-profile-target-env-v0'
     env = NormalizedBoxEnv(ClientWrapperEnv(remote_base, env_id))
     # env = ClientWrapperEnv(remote_base, env_id)
 

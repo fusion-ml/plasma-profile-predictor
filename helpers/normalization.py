@@ -293,7 +293,8 @@ def renormalize(data, param_dict, verbose=1):
             for i in range(data.shape[2]):
                 data[np.isnan(data[:, :, i]), i] = param_dict['nanmean'][i]
         else:
-            data[np.isnan(data)] = param_dict['nanmean']
+            pass
+            # data[np.isnan(data)] = param_dict['nanmean']
         # then normalize
         if param_dict['method'] == 'StandardScaler':
             return (data - param_dict['mean'])/np.maximum(

@@ -23,6 +23,9 @@ kwargs['tearing_path'] = TEARING_PATH
 register('non-physical-tearing-env-v0', entry_point="profile_env:NonPhysicalTearingProfileEnv", kwargs=kwargs)
 register('profile-only-tearing-v0', entry_point="profile_env:NonPhysicalTearingProfileOnlyEnv", kwargs=kwargs)
 register('scalar-only-tearing-v0', entry_point="profile_env:NonPhysicalScalarTearingEnv", kwargs=kwargs)
+kwargs['smooth_profiles'] = True
+register('smooth-profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=kwargs)
+register('mg-smooth-profile-target-env-v0', entry_point='profile_env:MGProfileTargetEnv', kwargs=kwargs)
 
 
 import logging

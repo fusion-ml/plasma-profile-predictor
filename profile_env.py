@@ -26,11 +26,11 @@ TRAIN_PATH = Path('/zfsauton/project/public/virajm/plasma_models/train.pkl')
 SHUFFLE_STARTS = False
 
 
-def smooth_profile(profile, order=3, freq_cutoff=0.3):
+def smooth_profile(profile, order=5, freq_cutoff=0.2):
     # low pass butterworth filter for smoothing
     sos = signal.butter(order, freq_cutoff, output='sos')
     filtered = signal.sosfilt(sos, profile[::-1])[::-1]
-    output = np.concatenate([filtered[:-order], profile[-order:]])
+    output = np.concatenate([filtered[..., :-order], profile[..., -order:]], axis=-1)
     return output
 
 
@@ -226,6 +226,7 @@ class ProfileEnv(Env):
             baseline = states['input_' + prof][:, 0, :]
             profile = baseline + output[i]
             if self.smooth_profiles:
+                old_profile = profile
                 profile = smooth_profile(profile)
             new_state['input_' + prof] = profile
 
@@ -461,32 +462,29 @@ class MGProfileTargetEnv(ProfileTargetEnv):
         super().__init__(scenario_path, gpu_num, smooth_profiles)
         self.core_temp_range = (2.4, 4)
         self.ped_pct_range = (0.2, 0.7)
-        self.pedestal_cutoff_range(0.7, 0.85)
-        db()
-        low_target = np.concatenate([self.bounds[self.target_profile_name][0]] * self.profile_length)
-        high_target = np.concatenate([self.bounds[self.target_profile_name][1]] * self.profile_length)
+        self.pedestal_cutoff_range = (0.7, 0.85)
+        low_target = np.array([self.bounds[self.target_profile_name][0]] * self.profile_length)
+        high_target = np.array([self.bounds[self.target_profile_name][1]] * self.profile_length)
         low = np.concatenate([self.observation_space.low, low_target])
         high = np.concatenate([self.observation_space.high, high_target])
         self.observation_space = spaces.Box(low=low, high=high)
 
     def reset(self):
-        db()
         obs = super().reset()
         core_temp = np.random.uniform(*self.core_temp_range)
         ped_temp = core_temp * np.random.uniform(*self.ped_pct_range)
         ped_cutoff = np.random.uniform(*self.pedestal_cutoff_range)
         self.target_profile = self.make_simple_target_profile(core_temp, ped_temp, 0., ped_cutoff)
         self.normalized_target_profile = renormalize({self.target_profile_name: self.target_profile},
-                                                      self.normalization_dict, verbose=False)
+                                                      self.normalization_dict, verbose=False)[self.target_profile_name]
         return self.augment_obs(obs)
 
     def step(self, action):
-        db()
         obs, rew, done, info = super().step(action)
         augmented_obs = self.augment_obs(obs)
         return augmented_obs, rew, done, info
 
-    def augment_obs(obs, self):
+    def augment_obs(self, obs):
         return np.concatenate([obs, self.normalized_target_profile])
 
 
