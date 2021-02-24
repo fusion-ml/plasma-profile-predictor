@@ -21,8 +21,8 @@ from ipdb import set_trace as db
 def experiment(variant):
     # expl_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
     # eval_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
-    remote_base = 'http://127.0.0.1:5000'
-    env_id = 'mg-smooth-profile-target-env-v0'
+    remote_base = 'http://127.0.0.1:5001'
+    env_id = variant['env_id'] 
     remote = True
     if remote:
         expl_env = NormalizedBoxEnv(ClientWrapperEnv(remote_base, env_id))
@@ -104,11 +104,12 @@ if __name__ == "__main__":
     # noinspection PyTypeChecker
     variant = dict(
         algorithm="SAC",
+        env_id = 'mg-profile-target-env-v0',
         version="normal",
         layer_size=1024,
         replay_buffer_size=int(1E6),
         algorithm_kwargs=dict(
-            num_epochs=3000,
+            num_epochs=5000,
             num_eval_steps_per_epoch=5000,
             num_trains_per_train_loop=1000,
             num_expl_steps_per_train_loop=1000,
@@ -126,6 +127,6 @@ if __name__ == "__main__":
             use_automatic_entropy_tuning=True,
         ),
     )
-    setup_logger('mg-smooth-profile-sac', variant=variant)
+    setup_logger('mg-profile-sac', variant=variant)
     ptu.set_gpu_mode(True)  # optionally set the GPU (default=False)
     experiment(variant)
