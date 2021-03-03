@@ -24,11 +24,11 @@ kwargs['rew_coefs'] = (1, 1)
 kwargs['tearing_path'] = TEARING_PATH
 register('non-physical-tearing-env-v0', entry_point="profile_env:NonPhysicalTearingProfileEnv", kwargs=deepcopy(kwargs))
 register('profile-only-tearing-v0', entry_point="profile_env:NonPhysicalTearingProfileOnlyEnv", kwargs=deepcopy(kwargs))
+register('power-profile-target-env-v0', entry_point='profile_env:PowerProfileTargetEnv', kwargs=deepcopy(kwargs))
 register('scalar-only-tearing-v0', entry_point="profile_env:NonPhysicalScalarTearingEnv", kwargs=deepcopy(kwargs))
 kwargs['smooth_profiles'] = True
 register('smooth-profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=deepcopy(kwargs))
 register('mg-smooth-profile-target-env-v0', entry_point='profile_env:MGProfileTargetEnv', kwargs=deepcopy(kwargs))
-register('power-smooth-profile-target-env-v0', entry_point='profile_env:PowerProfileTargetEnv', kwargs=deepcopy(kwargs))
 
 
 import logging
