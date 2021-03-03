@@ -21,7 +21,7 @@ from ipdb import set_trace as db
 def experiment(variant):
     # expl_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
     # eval_env = NormalizedBoxEnv(gym.make('MountainCarContinuous-v0'))
-    remote_base = 'http://127.0.0.1:5001'
+    remote_base = 'http://127.0.0.1:5000'
     env_id = variant['env_id'] 
     remote = True
     if remote:

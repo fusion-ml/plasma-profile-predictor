@@ -523,7 +523,7 @@ class DiscreteProfileTargetEnv(ProfileTargetEnv):
 
 class PowerProfileTargetEnv(ProfileTargetEnv):
     def __init__(self, scenario_path, gpu_num=None, **kwargs):
-        super().__init__(scenario_path, gpu_num)
+        super().__init__(scenario_path, gpu_num, **kwargs)
         self.action_space = spaces.Box(low=self.bounds['pinj'][0], high=self.bounds['pinj'][1], shape=(1,))
         self.constant_target_density = None
         self.constant_tinj = None
