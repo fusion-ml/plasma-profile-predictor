@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify
 import uuid
 import gym
+from copy import deepcopy
 from gym.envs.registration import register
 import numpy as np
 import six
@@ -12,17 +13,22 @@ import sys
 sys.path.append('..')
 from profile_env import ProfileEnv, SCENARIO_PATH, TEARING_PATH
 kwargs = dict(scenario_path=SCENARIO_PATH)
-register('profile-env-v0', entry_point="profile_env:ProfileEnv", kwargs=kwargs)
-register('scalar-env-v0', entry_point="profile_env:ScalarEnv", kwargs=kwargs)
-register('non-physical-env-v0', entry_point="profile_env:NonPhysicalProfileEnv", kwargs=kwargs)
-register('non-physical-scalar-env-v0', entry_point="profile_env:NonPhysicalScalarEnv", kwargs=kwargs)
-register('profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=kwargs)
-register('discrete-target-env-v0', entry_point="profile_env:DiscreteProfileTargetEnv", kwargs=kwargs)
+register('profile-env-v0', entry_point="profile_env:ProfileEnv", kwargs=deepcopy(kwargs))
+register('scalar-env-v0', entry_point="profile_env:ScalarEnv", kwargs=deepcopy(kwargs))
+register('non-physical-env-v0', entry_point="profile_env:NonPhysicalProfileEnv", kwargs=deepcopy(kwargs))
+register('non-physical-scalar-env-v0', entry_point="profile_env:NonPhysicalScalarEnv", kwargs=deepcopy(kwargs))
+register('profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=deepcopy(kwargs))
+register('mg-profile-target-env-v0', entry_point='profile_env:MGProfileTargetEnv', kwargs=deepcopy(kwargs))
+register('discrete-target-env-v0', entry_point="profile_env:DiscreteProfileTargetEnv", kwargs=deepcopy(kwargs))
 kwargs['rew_coefs'] = (1, 1)
 kwargs['tearing_path'] = TEARING_PATH
-register('non-physical-tearing-env-v0', entry_point="profile_env:NonPhysicalTearingProfileEnv", kwargs=kwargs)
-register('profile-only-tearing-v0', entry_point="profile_env:NonPhysicalTearingProfileOnlyEnv", kwargs=kwargs)
-register('scalar-only-tearing-v0', entry_point="profile_env:NonPhysicalScalarTearingEnv", kwargs=kwargs)
+register('non-physical-tearing-env-v0', entry_point="profile_env:NonPhysicalTearingProfileEnv", kwargs=deepcopy(kwargs))
+register('profile-only-tearing-v0', entry_point="profile_env:NonPhysicalTearingProfileOnlyEnv", kwargs=deepcopy(kwargs))
+register('scalar-only-tearing-v0', entry_point="profile_env:NonPhysicalScalarTearingEnv", kwargs=deepcopy(kwargs))
+kwargs['smooth_profiles'] = True
+register('smooth-profile-target-env-v0', entry_point="profile_env:ProfileTargetEnv", kwargs=deepcopy(kwargs))
+register('mg-smooth-profile-target-env-v0', entry_point='profile_env:MGProfileTargetEnv', kwargs=deepcopy(kwargs))
+register('power-smooth-profile-target-env-v0', entry_point='profile_env:PowerProfileTargetEnv', kwargs=deepcopy(kwargs))
 
 
 import logging

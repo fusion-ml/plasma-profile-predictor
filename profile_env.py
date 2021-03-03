@@ -26,12 +26,13 @@ TRAIN_PATH = Path('/zfsauton/project/public/virajm/plasma_models/train.pkl')
 SHUFFLE_STARTS = False
 
 
-def smooth_profile(profile, order=3, freq_cutoff=0.3):
+def smooth_profile(profile, order=5, freq_cutoff=0.2):
     # low pass butterworth filter for smoothing
+    profile = profile[0, :]
     sos = signal.butter(order, freq_cutoff, output='sos')
     filtered = signal.sosfilt(sos, profile[::-1])[::-1]
-    output = np.concatenate([filtered[:-order], profile[-order:]])
-    return output
+    output = np.concatenate([filtered[:-order], profile[-order:]], axis=-1)
+    return output[np.newaxis, ...]
 
 
 class ProfileEnv(Env):
@@ -226,6 +227,7 @@ class ProfileEnv(Env):
             baseline = states['input_' + prof][:, 0, :]
             profile = baseline + output[i]
             if self.smooth_profiles:
+                old_profile = profile
                 profile = smooth_profile(profile)
             new_state['input_' + prof] = profile
 
@@ -433,6 +435,7 @@ class ProfileTargetEnv(ProfileEnv):
                  pedestal_value=0.8,
                  edge_value=0.,
                  **kwargs):
+        print(f"Smooth_profiles: {smooth_profiles}")
         super().__init__(scenario_path, gpu_num, smooth_profiles)
         self.target_profile_name = target_profile_name
         # these temperatures are in KeV
@@ -461,32 +464,29 @@ class MGProfileTargetEnv(ProfileTargetEnv):
         super().__init__(scenario_path, gpu_num, smooth_profiles)
         self.core_temp_range = (2.4, 4)
         self.ped_pct_range = (0.2, 0.7)
-        self.pedestal_cutoff_range(0.7, 0.85)
-        db()
-        low_target = np.concatenate([self.bounds[self.target_profile_name][0]] * self.profile_length)
-        high_target = np.concatenate([self.bounds[self.target_profile_name][1]] * self.profile_length)
+        self.pedestal_cutoff_range = (0.7, 0.85)
+        low_target = np.array([self.bounds[self.target_profile_name][0]] * self.profile_length)
+        high_target = np.array([self.bounds[self.target_profile_name][1]] * self.profile_length)
         low = np.concatenate([self.observation_space.low, low_target])
         high = np.concatenate([self.observation_space.high, high_target])
         self.observation_space = spaces.Box(low=low, high=high)
 
     def reset(self):
-        db()
         obs = super().reset()
         core_temp = np.random.uniform(*self.core_temp_range)
         ped_temp = core_temp * np.random.uniform(*self.ped_pct_range)
         ped_cutoff = np.random.uniform(*self.pedestal_cutoff_range)
         self.target_profile = self.make_simple_target_profile(core_temp, ped_temp, 0., ped_cutoff)
         self.normalized_target_profile = renormalize({self.target_profile_name: self.target_profile},
-                                                      self.normalization_dict, verbose=False)
+                                                      self.normalization_dict, verbose=False)[self.target_profile_name]
         return self.augment_obs(obs)
 
     def step(self, action):
-        db()
         obs, rew, done, info = super().step(action)
         augmented_obs = self.augment_obs(obs)
         return augmented_obs, rew, done, info
 
-    def augment_obs(obs, self):
+    def augment_obs(self, obs):
         return np.concatenate([obs, self.normalized_target_profile])
 
 
@@ -518,6 +518,27 @@ class DiscreteProfileTargetEnv(ProfileTargetEnv):
         pinj = np.clip(pinj, self.bounds['pinj'][0], self.bounds['pinj'][1])
         full_action = np.array([self.constant_curr_target, pinj, self.constant_tinj, self.constant_curr_target])
         self.power = pinj
+        return super().step(full_action)
+
+
+class PowerProfileTargetEnv(ProfileTargetEnv):
+    def __init__(self, scenario_path, gpu_num=None, **kwargs):
+        super().__init__(scenario_path, gpu_num)
+        self.action_space = spaces.Box(low=self.bounds['pinj'][0], high=self.bounds['pinj'][1], shape=(1,))
+        self.constant_target_density = None
+        self.constant_tinj = None
+        self.constant_curr_target = None
+
+    def reset(self):
+        state = super().reset()
+        self.constant_target_density = self._state['input_future_target_density'][0, -1]
+        self.constant_tinj = self._state['input_future_tinj'][0, -1]
+        self.constant_curr_target = self._state['input_future_curr_target'][0, -1]
+        return state
+
+    def step(self, action):
+        pinj = action[0]
+        full_action = np.array([self.constant_curr_target, pinj, self.constant_tinj, self.constant_curr_target])
         return super().step(full_action)
 
 
@@ -614,6 +635,16 @@ class NonPhysicalTearingProfileOnlyEnv(NonPhysicalTearingProfileEnv):
         obs = super().step(action)
         return obs[:self.state_end]
 
+def test_smoothing():
+    env = ProfileEnv(scenario_path=SCENARIO_PATH, smooth_profiles=True)
+    env.reset()
+    rewards = []
+    while True:
+        action = env.action_space.sample()
+        next_state, reward, done, info = env.step(action)
+        rewards.append(reward)
+        if done:
+            break
 
 def test_env():
     env = ProfileEnv(scenario_path=SCENARIO_PATH)
@@ -727,6 +758,7 @@ def compute_tearing_stats():
 
 
 if __name__ == '__main__':
+    test_smoothing()
     test_discrete_env()
     test_env()
     test_rollout()
