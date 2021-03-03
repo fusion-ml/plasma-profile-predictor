@@ -29,9 +29,18 @@ SHUFFLE_STARTS = False
 def smooth_profile(profile, order=5, freq_cutoff=0.2):
     # low pass butterworth filter for smoothing
     profile = profile[0, :]
+    '''
     sos = signal.butter(order, freq_cutoff, output='sos')
     filtered = signal.sosfilt(sos, profile[::-1])[::-1]
     output = np.concatenate([filtered[:-order], profile[-order:]], axis=-1)
+    '''
+    db()
+    cs = np.cumsum(profile)
+    smooth = cs[order:] - cs[:-order]
+    most = smooth / order
+    front = profile[:order // 2 + 1]
+    back = profile[-(order // 2):]
+    output = np.concatenate([front, back, most])
     return output[np.newaxis, ...]
 
 
